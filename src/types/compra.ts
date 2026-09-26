@@ -8,7 +8,8 @@ export interface OrdenCompraCabecera {
   solicitante: string
   fecha: string
   // Este atributo no está en el DER; se simula el nombre en lugar de resolver estado_id.
-  estado: 'Pendiente' | 'Aprobada' | 'Cancelada'
+  // Sin estado hasta registrar la recepción; luego queda pendiente de evaluación.
+  estado: 'Pendiente' | 'Aprobado' | 'Rechazado' | 'Recibido' | null
   total: number
 }
 
@@ -31,8 +32,8 @@ export interface NuevaOrdenCompra {
 }
 
 export const CABECERAS_COMPRA_MOCK: OrdenCompraCabecera[] = [
-  { ordencompra_id: 301, proveedor_id: 1, solicitante: 'Depósito Central', fecha: '2026-09-11', estado: 'Pendiente', total: 490000 },
-  { ordencompra_id: 302, proveedor_id: 2, solicitante: 'Sucursal Norte', fecha: '2026-09-13', estado: 'Pendiente', total: 290000 }
+  { ordencompra_id: 301, proveedor_id: 1, solicitante: 'Depósito Central', fecha: '2026-09-11', estado: null, total: 490000 },
+  { ordencompra_id: 302, proveedor_id: 2, solicitante: 'Sucursal Norte', fecha: '2026-09-13', estado: null, total: 290000 }
 ]
 
 export const DETALLES_COMPRA_MOCK: OrdenCompraDetalle[] = [

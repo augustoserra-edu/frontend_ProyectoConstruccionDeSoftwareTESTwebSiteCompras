@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { normalizarBusqueda } from '../utils/busqueda'
 import type { OrdenCompraCabecera, OrdenCompraDetalle } from '../types/compra'
 import type { FacturaCabecera } from '../types/finanzas'
 import { PROVEEDORES_MOCK } from '../types/proveedor'
@@ -7,6 +8,7 @@ import { PRODUCTOS_MOCK } from '../types/producto'
 
 const props = defineProps<{
   mostrar: boolean
+  ordenInicialId?: number | null
   ordenes: OrdenCompraCabecera[]
   facturas: FacturaCabecera[]
   detalles: OrdenCompraDetalle[]
@@ -22,21 +24,22 @@ const emit = defineEmits<{
 }>()
 
 const busqueda = ref('')
+const filtroEstado = ref<OrdenCompraCabecera['estado'] | ''>('')
 const ordenId = ref<number | null>(null)
 const buscador = ref<HTMLInputElement | null>(null)
 let focoAnterior: HTMLElement | null = null
 const dialogo = ref<HTMLElement | null>(null)
 const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
-const normalizar = (valor: string) => valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 const proveedor = (id: number) => PROVEEDORES_MOCK.find(item => item.proveedor_id === id)
 const nombreProducto = (id: number) => PRODUCTOS_MOCK.find(item => item.producto_id === id)?.nombre ?? `Producto #${id}`
 const facturasDeOrden = (id: number) => props.facturas.filter(item => item.ordencompra_id === id)
 
 const ordenesFiltradas = computed(() => {
-  const texto = normalizar(busqueda.value)
+  const texto = normalizarBusqueda(busqueda.value)
   return props.ordenes.filter(orden => {
+    if (filtroEstado.value !== '' && orden.estado !== filtroEstado.value) return false
     const proveedorOrden = proveedor(orden.proveedor_id)
-    return normalizar([
+    return normalizarBusqueda([
       orden.ordencompra_id, orden.solicitante, orden.fecha,
       proveedorOrden?.nombre, proveedorOrden?.apellido,
       facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(' ')
@@ -50,7 +53,10 @@ const proveedorSeleccionado = computed(() => seleccionada.value ? proveedor(sele
 const facturasSeleccionadas = computed(() => seleccionada.value ? facturasDeOrden(seleccionada.value.ordencompra_id) : [])
 
 function cambiarEstado(estado: OrdenCompraCabecera['estado']) {
-  if (!seleccionada.value || !props.cambiosHabilitados || props.actualizando || seleccionada.value.estado !== 'Pendiente') return
+  if (!seleccionada.value || !props.cambiosHabilitados || props.actualizando) return
+  const actual = seleccionada.value.estado
+  if (!(actual === 'Pendiente' && (estado === 'Aprobado' || estado === 'Rechazado')) &&
+      !(actual === null && estado === 'Recibido')) return
   emit('cambiar-estado', seleccionada.value.ordencompra_id, estado)
 }
 
@@ -66,7 +72,9 @@ watch(() => props.mostrar, async mostrar => {
   if (mostrar) {
     focoAnterior = document.activeElement instanceof HTMLElement ? document.activeElement : null
     busqueda.value = ''
-    ordenId.value = props.ordenes[0]?.ordencompra_id ?? null
+    filtroEstado.value = ''
+    ordenId.value = props.ordenes.find(orden => orden.ordencompra_id === props.ordenInicialId)?.ordencompra_id
+      ?? props.ordenes[0]?.ordencompra_id ?? null
     await nextTick()
     buscador.value?.focus()
   } else {
@@ -114,6 +122,15 @@ function mantenerFoco(event: KeyboardEvent) {
               <div class="card-body">
                 <label for="buscar-orden-consulta" class="form-label small fw-semibold">Buscar orden</label>
                 <input id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, solicitante, proveedor, fecha o comprobante..." />
+                <label for="estado-orden-consulta" class="form-label small fw-semibold mt-3">Filtrar por estado</label>
+                <select id="estado-orden-consulta" v-model="filtroEstado" class="form-select" :disabled="actualizando">
+                  <option value="">Todos los estados</option>
+                  <option :value="null">Sin recibir</option>
+                  <option value="Recibido">Recibido</option>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="Aprobado">Aprobado</option>
+                  <option value="Rechazado">Rechazado</option>
+                </select>
                 <small class="text-muted" role="status">{{ ordenesFiltradas.length }} orden(es) encontradas</small>
               </div>
             </div>
@@ -125,7 +142,7 @@ function mantenerFoco(event: KeyboardEvent) {
                     <button v-for="orden in ordenesFiltradas" :key="orden.ordencompra_id" type="button" class="list-group-item list-group-item-action p-3" :disabled="actualizando" :class="{ seleccionada: ordenId === orden.ordencompra_id }" :aria-pressed="ordenId === orden.ordencompra_id" @click="ordenId = orden.ordencompra_id">
                       <span class="d-flex justify-content-between gap-2 mb-2">
                         <strong>Orden #{{ orden.ordencompra_id }}</strong>
-                        <span class="badge align-self-start" :class="orden.estado === 'Aprobada' ? 'bg-success' : orden.estado === 'Cancelada' ? 'bg-danger' : 'bg-warning text-dark'">{{ orden.estado }}</span>
+                        <span class="badge align-self-start" :class="orden.estado === 'Aprobado' ? 'bg-success' : orden.estado === 'Rechazado' ? 'bg-danger' : orden.estado === 'Recibido' ? 'bg-primary' : orden.estado === null ? 'bg-secondary' : 'bg-warning text-dark'">{{ orden.estado ?? 'Sin recibir' }}</span>
                       </span>
                       <span class="d-block fw-semibold">{{ orden.solicitante }}</span>
                       <span class="d-flex justify-content-between gap-2 small mt-2"><span class="text-muted">{{ orden.fecha }}</span><strong>{{ moneda(orden.total) }}</strong></span>
@@ -142,8 +159,8 @@ function mantenerFoco(event: KeyboardEvent) {
                     <div class="border rounded p-3 mb-4 bg-light">
                       <span class="small text-muted d-block mb-2">Estado de la orden</span>
                       <div class="d-flex flex-wrap align-items-center gap-2">
-                        <span class="badge me-auto" :class="seleccionada.estado === 'Aprobada' ? 'bg-success' : seleccionada.estado === 'Cancelada' ? 'bg-danger' : 'bg-warning text-dark'">
-                          {{ seleccionada.estado }}
+                        <span class="badge me-auto" :class="seleccionada.estado === 'Aprobado' ? 'bg-success' : seleccionada.estado === 'Rechazado' ? 'bg-danger' : seleccionada.estado === 'Recibido' ? 'bg-primary' : seleccionada.estado === null ? 'bg-secondary' : 'bg-warning text-dark'">
+                          {{ seleccionada.estado ?? 'Sin recibir' }}
                         </span>
 
                         <template v-if="seleccionada.estado === 'Pendiente'">
@@ -151,7 +168,7 @@ function mantenerFoco(event: KeyboardEvent) {
                             type="button"
                             class="btn btn-sm btn-outline-success"
                             :disabled="!cambiosHabilitados || actualizando || !detallesSeleccionados.length"
-                            @click="cambiarEstado('Aprobada')"
+                            @click="cambiarEstado('Aprobado')"
                           >
                             Aprobar
                           </button>
@@ -159,12 +176,19 @@ function mantenerFoco(event: KeyboardEvent) {
                             type="button"
                             class="btn btn-sm btn-outline-danger"
                             :disabled="!cambiosHabilitados || actualizando"
-                            @click="cambiarEstado('Cancelada')"
+                            @click="cambiarEstado('Rechazado')"
                           >
-                            Cancelar
+                            Rechazar
                           </button>
                         </template>
 
+                        <button
+                          v-else-if="seleccionada.estado === null"
+                          type="button"
+                          class="btn btn-sm btn-outline-primary"
+                          :disabled="!cambiosHabilitados || actualizando"
+                          @click="cambiarEstado('Recibido')"
+                        >Recibir</button>
                         <span v-else class="text-muted small fst-italic">
                           Estado bloqueado (no editable)
                         </span>

@@ -20,8 +20,12 @@ const emit = defineEmits<{
 const proveedorId = ref<number | ''>('')
 const solicitante = ref('')
 const busquedaProveedor = ref('')
-const hoy = new Date()
-const fecha = ref(`${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`)
+function obtenerFechaActual() {
+  const hoy = new Date()
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
+}
+
+const fecha = ref(obtenerFechaActual())
 let siguienteClave = 1
 const items = ref<(NuevoOrdenCompraDetalle & { clave: number; busqueda: string })[]>([])
 const errorValidacion = ref('')
@@ -52,8 +56,9 @@ const proveedorFueraDelFiltro = computed(() => PROVEEDORES_MOCK.find(proveedor =
 const productosPorItem = computed(() => items.value.map(item => {
   const busqueda = normalizarBusqueda(item.busqueda)
   const coincidencias = PRODUCTOS_MOCK.filter(producto =>
-    normalizarBusqueda(producto.nombre).includes(busqueda) ||
-    producto.producto_id.toString().includes(busqueda)
+    !items.value.some(otro => otro.clave !== item.clave && otro.producto_id === producto.producto_id) &&
+    (normalizarBusqueda(producto.nombre).includes(busqueda) ||
+    producto.producto_id.toString().includes(busqueda))
   )
   const seleccionadoFueraDelFiltro = PRODUCTOS_MOCK.find(producto =>
     producto.producto_id === item.producto_id &&
@@ -63,6 +68,7 @@ const productosPorItem = computed(() => items.value.map(item => {
 }))
 
 function agregarItem() {
+  if (items.value.length >= PRODUCTOS_MOCK.length) return
   items.value.push({ clave: siguienteClave++, busqueda: '', producto_id: 0, cantidad: 1, preciounitario: 0 })
 }
 
@@ -71,13 +77,21 @@ function actualizarPrecio(item: NuevoOrdenCompraDetalle) {
 }
 
 function guardar() {
+  if (props.guardando) return
+  if (!props.cabeceraCreada) items.value.forEach(actualizarPrecio)
+  if (!props.cabeceraCreada) fecha.value = obtenerFechaActual()
   errorValidacion.value = ''
+  const productosElegidos = items.value.filter(item => item.producto_id !== 0).map(item => item.producto_id)
+  if (new Set(productosElegidos).size !== productosElegidos.length) {
+    errorValidacion.value = 'Cada producto puede aparecer una sola vez. Modificá la cantidad en su fila para pedir más unidades.'
+    return
+  }
   if (!solicitante.value.trim() || !proveedorId.value || !fecha.value || !items.value.length || items.value.some(item =>
     !PRODUCTOS_MOCK.some(producto => producto.producto_id === item.producto_id)
-    || !Number.isFinite(item.cantidad) || item.cantidad <= 0
+    || !Number.isSafeInteger(item.cantidad) || item.cantidad <= 0
     || !Number.isFinite(item.preciounitario) || item.preciounitario <= 0
   ) || !Number.isFinite(total.value) || total.value <= 0) {
-    errorValidacion.value = 'Completá solicitante interno, proveedor, fecha y al menos un producto con cantidad y precio mayores a cero.'
+    errorValidacion.value = 'Completá solicitante interno, proveedor, fecha y al menos un producto con cantidad entera mayor a cero y precio válido.'
     return
   }
   emit('guardar', {
@@ -97,8 +111,7 @@ watch(
     proveedorId.value = ''
     solicitante.value = ''
     busquedaProveedor.value = ''
-    const fechaActual = new Date()
-    fecha.value = `${fechaActual.getFullYear()}-${String(fechaActual.getMonth() + 1).padStart(2, '0')}-${String(fechaActual.getDate()).padStart(2, '0')}`
+    fecha.value = obtenerFechaActual()
     items.value = []
     errorValidacion.value = ''
     agregarItem()
@@ -160,12 +173,13 @@ watch(
                 </div>
                 <div class="col-md-4">
                   <label for="orden-fecha" class="form-label fw-semibold">Fecha</label>
-                  <input id="orden-fecha" v-model="fecha" type="date" class="form-control" required />
+                  <input id="orden-fecha" :value="fecha" type="date" class="form-control" readonly aria-describedby="orden-fecha-ayuda" />
+                  <small id="orden-fecha-ayuda" class="text-muted">Se asigna automáticamente el día de creación.</small>
                 </div>
               </div>
               <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
                 <h6 class="fw-bold mb-0">Detalle de productos</h6>
-                <button type="button" class="btn btn-sm btn-outline-coralon" @click="agregarItem">Agregar producto</button>
+                <button type="button" class="btn btn-sm btn-outline-coralon" :disabled="items.length >= PRODUCTOS_MOCK.length" @click="agregarItem">Agregar producto</button>
               </div>
               <div v-for="(item, index) in items" :key="item.clave" class="row g-2 align-items-end border rounded p-2 mb-3">
                 <div class="col-md-4">
@@ -196,11 +210,11 @@ watch(
                 </div>
                 <div class="col-md-2">
                   <label :for="`cantidad-${item.clave}`" class="form-label small">Cantidad</label>
-                  <input :id="`cantidad-${item.clave}`" v-model.number="item.cantidad" type="number" min="0.01" step="0.01" required class="form-control" />
+                  <input :id="`cantidad-${item.clave}`" v-model.number="item.cantidad" type="number" min="1" step="1" inputmode="numeric" required class="form-control" />
                 </div>
                 <div class="col-md-2">
                   <label :for="`precio-${item.clave}`" class="form-label small">Precio unitario</label>
-                  <input :id="`precio-${item.clave}`" v-model.number="item.preciounitario" type="number" min="0.01" step="0.01" required class="form-control" />
+                  <input :id="`precio-${item.clave}`" :value="moneda(item.preciounitario)" type="text" readonly class="form-control bg-light" />
                 </div>
                 <div class="col-md-3">
                   <span class="small d-block mb-2">Subtotal</span>
