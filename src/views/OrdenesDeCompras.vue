@@ -60,19 +60,19 @@ async function getOrdenCompraDetalles(): Promise<OrdenCompraDetalle[]> {
 async function aprobarOrdenCompra(ordencompra_id: number): Promise<OrdenCompraCabecera> {
   const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
   if (!cabecera) throw new Error('No existe la orden de compra.')
-  if (cabecera.estado !== 'Pendiente') throw new Error('Solo se pueden aprobar órdenes pendientes.')
+  if (cabecera.estado !== 'pendiente') throw new Error('Solo se pueden aprobar órdenes pendientes.')
   if (!detallesCompra.value.some(item => item.ordencompra_id === ordencompra_id)) {
     throw new Error('No se puede aprobar una orden sin productos registrados.')
   }
-  cabecera.estado = 'Aprobado'
+  cabecera.estado = 'aprobada'
   return { ...cabecera }
 }
 
 async function rechazarOrdenCompra(ordencompra_id: number): Promise<OrdenCompraCabecera> {
   const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
   if (!cabecera) throw new Error('No existe la orden de compra.')
-  if (cabecera.estado !== 'Pendiente') throw new Error('Solo se pueden rechazar órdenes pendientes.')
-  cabecera.estado = 'Rechazado'
+  if (cabecera.estado !== 'pendiente') throw new Error('Solo se pueden rechazar órdenes pendientes.')
+  cabecera.estado = 'rechazada'
   return { ...cabecera }
 }
 
@@ -252,13 +252,13 @@ async function confirmarCambioEstado(ordenId: number, estado: OrdenCompraCabecer
   if (resolverConfirmacion) return false
   let texto: string
   switch (estado) {
-    case 'Recibido':
-      texto = `¿Estás seguro de recibir la orden #${ordenId}? Quedará en estado Pendiente para aprobar o rechazar.`
+    case 'recibida':
+      texto = `¿Estás seguro de recibir la orden #${ordenId}? Quedará en estado pendiente para aprobar o rechazar.`
       break
-    case 'Aprobado':
+    case 'aprobada':
       texto = `¿Estás seguro de aprobar la orden #${ordenId}? Este cambio es definitivo.`
       break
-    case 'Rechazado':
+    case 'rechazada':
       texto = `¿Estás seguro de rechazar la orden #${ordenId}? Este cambio es definitivo.`
       break
     default:
@@ -271,8 +271,8 @@ async function confirmarCambioEstado(ordenId: number, estado: OrdenCompraCabecer
 }
 
 async function aprobarOrden(orden: OrdenCompraListado) {
-  if (accionesBloqueadas.value || !cambiosEstadoHabilitados.value || orden.estado_nombre !== 'Pendiente') return
-  if (!await confirmarCambioEstado(orden.orden_id, 'Aprobado')) return
+  if (accionesBloqueadas.value || !cambiosEstadoHabilitados.value || orden.estado_nombre !== 'pendiente') return
+  if (!await confirmarCambioEstado(orden.orden_id, 'aprobada')) return
   aprobandoId.value = orden.orden_id
   errorAprobacion.value = ''
   mensaje.value = ''
@@ -288,8 +288,8 @@ async function aprobarOrden(orden: OrdenCompraListado) {
 }
 
 async function rechazarOrden(orden: OrdenCompraListado) {
-  if (accionesBloqueadas.value || !cambiosEstadoHabilitados.value || orden.estado_nombre !== 'Pendiente') return
-  if (!await confirmarCambioEstado(orden.orden_id, 'Rechazado')) return
+  if (accionesBloqueadas.value || !cambiosEstadoHabilitados.value || orden.estado_nombre !== 'pendiente') return
+  if (!await confirmarCambioEstado(orden.orden_id, 'rechazada')) return
   rechazandoId.value = orden.orden_id
   errorAprobacion.value = ''
   mensaje.value = ''
@@ -308,7 +308,7 @@ async function recibirOrdenCompra(ordenId: number): Promise<OrdenCompraCabecera>
   const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordenId)
   if (!cabecera) throw new Error('No existe la orden de compra.')
   if (cabecera.estado !== null) throw new Error('La orden ya fue recibida.')
-  cabecera.estado = 'Pendiente'
+  cabecera.estado = 'pendiente'
   return { ...cabecera }
 }
 
@@ -321,9 +321,9 @@ async function cambiarEstadoOrden(ordenId: number, estado: OrdenCompraCabecera['
   try {
     let cabecera: OrdenCompraCabecera
     switch (estado) {
-      case 'Aprobado': cabecera = await aprobarOrdenCompra(ordenId); break
-      case 'Rechazado': cabecera = await rechazarOrdenCompra(ordenId); break
-      case 'Recibido': cabecera = await recibirOrdenCompra(ordenId); break
+      case 'aprobada': cabecera = await aprobarOrdenCompra(ordenId); break
+      case 'rechazada': cabecera = await rechazarOrdenCompra(ordenId); break
+      case 'recibida': cabecera = await recibirOrdenCompra(ordenId); break
       default: throw new Error('No se puede volver al estado pendiente.')
     }
     const orden = ordenes.value.find(item => item.orden_id === ordenId)
@@ -410,10 +410,10 @@ onMounted(verOrdenes)
             <select id="estado-orden-listado" v-model="filtroEstado" class="form-select">
               <option value="">Todos los estados</option>
               <option :value="null">Sin recibir</option>
-              <option value="Recibido">Recibido</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Aprobado">Aprobado</option>
-              <option value="Rechazado">Rechazado</option>
+              <option value="recibida">recibida</option>
+              <option value="pendiente">pendiente</option>
+              <option value="aprobada">aprobada</option>
+              <option value="rechazada">rechazada</option>
             </select>
           </div>
         </div>
@@ -464,7 +464,7 @@ onMounted(verOrdenes)
               </td>
               <td class="text-muted text-nowrap">{{ orden.fecha }}</td>
               <td>
-                <span class="badge" :class="orden.estado_nombre === 'Rechazado' ? 'bg-danger' : orden.estado_nombre === 'Aprobado' ? 'bg-success' : orden.estado_nombre === 'Recibido' ? 'bg-primary' : orden.estado_nombre === null ? 'bg-secondary' : 'bg-warning text-dark'">
+                <span class="badge" :class="orden.estado_nombre === 'rechazada' ? 'bg-danger' : orden.estado_nombre === 'aprobada' ? 'bg-success' : orden.estado_nombre === 'recibida' ? 'bg-primary' : orden.estado_nombre === null ? 'bg-secondary' : 'bg-warning text-dark'">
                   {{ orden.estado_nombre ?? 'Sin recibir' }}
                 </span>
               </td>
@@ -472,7 +472,7 @@ onMounted(verOrdenes)
               <td class="pe-3 text-end" @click.stop>
                 <div class="d-flex flex-wrap justify-content-end gap-2">
                   <button
-                    v-if="orden.estado_nombre === 'Pendiente'"
+                    v-if="orden.estado_nombre === 'pendiente'"
                     type="button"
                     class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 text-nowrap"
                     :disabled="accionesBloqueadas || !cambiosEstadoHabilitados || orden.detalles.length === 0"
@@ -486,7 +486,7 @@ onMounted(verOrdenes)
                     <span>{{ aprobandoId === orden.orden_id ? 'Aprobando…' : 'Aprobar' }}</span>
                   </button>
                   <button
-                    v-if="orden.estado_nombre === 'Pendiente'"
+                    v-if="orden.estado_nombre === 'pendiente'"
                     type="button"
                     class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 text-nowrap"
                     :disabled="accionesBloqueadas || !cambiosEstadoHabilitados"
@@ -503,7 +503,7 @@ onMounted(verOrdenes)
                     type="button"
                     class="btn btn-sm btn-outline-primary"
                     :disabled="accionesBloqueadas || !cambiosEstadoHabilitados"
-                    @click="cambiarEstadoOrden(orden.orden_id, 'Recibido')"
+                    @click="cambiarEstadoOrden(orden.orden_id, 'recibida')"
                   >Recibir</button>
                   <span v-else class="text-muted small align-self-center fst-italic">
                     Estado definitivo

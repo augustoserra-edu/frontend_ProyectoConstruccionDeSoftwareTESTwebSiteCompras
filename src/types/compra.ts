@@ -9,7 +9,7 @@ export interface OrdenCompraCabecera {
   fecha: string
   // Este atributo no está en el DER; se simula el nombre en lugar de resolver estado_id.
   // Sin estado hasta registrar la recepción; luego queda pendiente de evaluación.
-  estado: 'Pendiente' | 'Aprobado' | 'Rechazado' | 'Recibido' | null
+  estado: 'pendiente' | 'aprobada' | 'rechazada' | 'recibida' | null
   total: number
 }
 
