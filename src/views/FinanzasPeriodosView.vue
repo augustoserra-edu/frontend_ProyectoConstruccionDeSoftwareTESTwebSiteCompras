@@ -1,81 +1,40 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { PERIODOS_MOCK, type Periodo } from '../types/finanzas'
+import type { PeriodoApi } from '../types/finanzasApi'
 import { obtenerPeriodos, crearPeriodo } from '../services/periodosService'
+import { mensajeDeError } from '../services/finanzasApi'
+import { NOMBRES_MESES, etiquetaPeriodo } from '../utils/formatoFinanzas'
 import ModalCrearPeriodo from '../components/ModalCrearPeriodo.vue'
 
-const periodos = ref<Periodo[]>([])
+const periodos = ref<PeriodoApi[]>([])
 const cargando = ref(false)
 const mostrarModalCrear = ref(false)
 const mensajeExito = ref('')
 const mensajeError = ref('')
 
-const nombresMeses: Record<number, string> = {
-  1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
-  5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
-  9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
-}
-
-// GET: Cargar períodos desde el backend con normalización y soporte para distintas respuestas
+// GET: Cargar períodos desde el backend. Si falla se muestra el error, sin datos de respaldo.
 async function cargarPeriodos() {
   cargando.value = true
   mensajeError.value = ''
   try {
-    const respuesta = await obtenerPeriodos()
-    
-    // Normalizar la respuesta por si viene directa o paginada en un objeto { results: [...] }
-    let datosCrudos: any[] = []
-    if (Array.isArray(respuesta)) {
-      datosCrudos = respuesta
-    } else if (respuesta && typeof respuesta === 'object' && Array.isArray((respuesta as any).results)) {
-      datosCrudos = (respuesta as any).results
-    } else {
-      console.warn('La respuesta de la API no es un array. Se usarán los datos de respaldo (MOCK).', respuesta)
-      periodos.value = [...PERIODOS_MOCK]
-      return
-    }
-
-    // Mapeo flexible para tolerar variaciones en nombres de columnas (snake_case, camelCase o Mayúsculas)
-    periodos.value = datosCrudos.map((item: any) => ({
-      periodo_id: Number(item.periodo_id ?? item.id ?? item.ID_Periodo ?? 0),
-      anio: Number(item.anio ?? item.year ?? item.Anio ?? item.año ?? 0),
-      mes: Number(item.mes ?? item.month ?? item.Mes ?? 0)
-    }))
+    periodos.value = await obtenerPeriodos()
   } catch (error) {
-    console.warn('Backend no disponible o error al consultar períodos. Usando datos mock.', error)
-    periodos.value = [...PERIODOS_MOCK]
+    periodos.value = []
+    mensajeError.value = mensajeDeError(error)
   } finally {
     cargando.value = false
   }
 }
 
-// POST: Crear nuevo período en el backend
+// POST: Crear nuevo período en el backend y recargar la lista
 async function crearNuevoPeriodo(datos: { anio: number; mes: number }) {
   mensajeError.value = ''
   try {
-    const nuevo = await crearPeriodo({
-      anio: datos.anio,
-      mes: datos.mes
-    })
-    
-    const periodoNormalizado: Periodo = {
-      periodo_id: Number((nuevo as any).periodo_id ?? (nuevo as any).id ?? Math.floor(Math.random() * 1000)),
-      anio: Number(nuevo.anio ?? datos.anio),
-      mes: Number(nuevo.mes ?? datos.mes)
-    }
-
-    periodos.value.unshift(periodoNormalizado)
-    mostrarMensajeExito(`Período ${nombresMeses[datos.mes]} ${datos.anio} registrado con éxito.`)
+    await crearPeriodo({ anio: datos.anio, mes: datos.mes })
+    await cargarPeriodos()
+    mostrarMensajeExito(`Período ${etiquetaPeriodo(datos.anio, datos.mes)} registrado con éxito.`)
   } catch (error) {
-    console.warn('Error al persistir período en backend. Aplicando cambio en memoria local.', error)
-    const nuevoId = periodos.value.length > 0 ? Math.max(...periodos.value.map(p => p.periodo_id)) + 1 : 1
-    const periodoLocal: Periodo = {
-      periodo_id: nuevoId,
-      anio: datos.anio,
-      mes: datos.mes
-    }
-    periodos.value.unshift(periodoLocal)
-    mostrarMensajeExito(`Período ${nombresMeses[datos.mes]} ${datos.anio} guardado en memoria local.`)
+    mensajeError.value = mensajeDeError(error)
   }
 }
 
@@ -138,11 +97,11 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in periodos" :key="p.periodo_id">
-              <td class="ps-3 fw-bold text-muted font-monospace">#{{ p.periodo_id }}</td>
-              <td class="fw-semibold text-dark">{{ nombresMeses[p.mes] || p.mes }}</td>
+            <tr v-for="p in periodos" :key="p.id">
+              <td class="ps-3 fw-bold text-muted font-monospace">#{{ p.id }}</td>
+              <td class="fw-semibold text-dark">{{ NOMBRES_MESES[p.mes] || p.mes }}</td>
               <td>{{ p.anio }}</td>
-              <td class="pe-3 text-end text-muted small">{{ nombresMeses[p.mes] || p.mes }} de {{ p.anio }}</td>
+              <td class="pe-3 text-end text-muted small">{{ NOMBRES_MESES[p.mes] || p.mes }} de {{ p.anio }}</td>
             </tr>
             <tr v-if="!cargando && periodos.length === 0">
               <td colspan="4" class="text-center py-4 text-muted">No hay períodos registrados.</td>
