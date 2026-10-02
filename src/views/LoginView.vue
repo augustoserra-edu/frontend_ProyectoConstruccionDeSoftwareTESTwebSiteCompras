@@ -17,7 +17,7 @@ async function iniciarSesion() {
 
   try {
     const respuesta = await axios.post(
-      `${import.meta.env.VITE_API_BASE_URL}/api/auth/login/`,
+      `${import.meta.env.VITE_API_BASE_URL}/auth/login/`,
       { username: usuario.value, password: contrasena.value }
     )
     localStorage.setItem('accessToken', respuesta.data.access)
