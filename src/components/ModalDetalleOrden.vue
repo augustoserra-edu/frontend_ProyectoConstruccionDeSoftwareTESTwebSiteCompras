@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { OrdenComercial } from '../types/finanzas'
+import { formatoFecha } from '../utils/formatoFinanzas'
 
 interface Props {
   mostrar: boolean
@@ -47,7 +48,7 @@ function cerrar() {
             <div class="row g-3 mb-4 p-3 bg-light rounded border">
               <div class="col-md-4">
                 <span class="text-muted small d-block">Fecha</span>
-                <strong class="text-dark">{{ orden.fecha }}</strong>
+                <strong class="text-dark">{{ formatoFecha(orden.fecha) }}</strong>
               </div>
               <div class="col-md-5">
                 <span class="text-muted small d-block">{{ orden.tipo_orden === 'Compra' ? 'Proveedor' : 'Cliente' }}</span>

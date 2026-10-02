@@ -1,42 +1,76 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import {
-  CIERRES_MOCK,
-  DIARIO_MOCK,
-  type CierreMensual,
-  type AsientoDiario
-} from '../types/finanzas'
+import { ref, computed, onMounted } from 'vue'
+import type { CierreMensualApi, DiarioApi, PeriodoApi } from '../types/finanzasApi'
+import { obtenerCierres, cerrarCierre } from '../services/cierresService'
+import { obtenerPeriodos } from '../services/periodosService'
+import { obtenerDiarios } from '../services/diariosService'
+import { mensajeDeError } from '../services/finanzasApi'
+import { etiquetaPeriodo, formatoFecha } from '../utils/formatoFinanzas'
 
-// Listados reactivos
-const cierres = ref<CierreMensual[]>([...CIERRES_MOCK])
-const asientosDiario = ref<AsientoDiario[]>([...DIARIO_MOCK])
+// Datos que vienen del backend
+const cierres = ref<CierreMensualApi[]>([])
+const periodos = ref<PeriodoApi[]>([])
+const asientosDiario = ref<DiarioApi[]>([])
+
+const cargando = ref(false)
+const cerrando = ref(false)
+const mensajeError = ref('')
+const mensajeExito = ref('')
 
 // Selecciones y filtros
-const periodoSeleccionado = ref<CierreMensual | null>(null)
-const filtroPeriodoId = ref<number | 'todos'>('todos')
+const periodoSeleccionado = ref<CierreMensualApi | null>(null)
+const filtroCierreId = ref<number | 'todos'>('todos')
 
 // Modal de Confirmación de Cierre
 const mostrarModalConfirmacion = ref(false)
 
+// El cierre solo trae el id del período: el nombre se arma cruzando con los períodos.
+function nombreCierre(cierre: CierreMensualApi): string {
+  const periodo = periodos.value.find(p => p.id === cierre.periodo)
+  return periodo ? etiquetaPeriodo(periodo.anio, periodo.mes) : `Período #${cierre.periodo}`
+}
+
+function textoEstado(cierre: CierreMensualApi): string {
+  return cierre.estado === 'ABIERTO' ? 'Abierto' : 'Cerrado'
+}
+
 // Libro Diario filtrado
 const asientosFiltrados = computed(() => {
-  if (filtroPeriodoId.value === 'todos') {
+  if (filtroCierreId.value === 'todos') {
     return asientosDiario.value
   }
-  return asientosDiario.value.filter(a => a.cierremensual_id === filtroPeriodoId.value)
+  return asientosDiario.value.filter(a => a.cierre_mensual === filtroCierreId.value)
 })
 
-// Totales Debe y Haber
-const totalDebe = computed(() => {
-  return asientosFiltrados.value.reduce((acc, curr) => acc + curr.debe, 0)
-})
+async function cargarDatos() {
+  cargando.value = true
+  mensajeError.value = ''
+  try {
+    const [cierresApi, periodosApi, diariosApi] = await Promise.all([
+      obtenerCierres(),
+      obtenerPeriodos(),
+      obtenerDiarios()
+    ])
+    cierres.value = cierresApi
+    periodos.value = periodosApi
+    asientosDiario.value = diariosApi
 
-const totalHaber = computed(() => {
-  return asientosFiltrados.value.reduce((acc, curr) => acc + curr.haber, 0)
-})
+    // Mantener la selección con los datos actualizados
+    const seleccionadoId = periodoSeleccionado.value?.id
+    periodoSeleccionado.value = cierresApi.find(c => c.id === seleccionadoId) ?? null
+  } catch (error) {
+    cierres.value = []
+    periodos.value = []
+    asientosDiario.value = []
+    periodoSeleccionado.value = null
+    mensajeError.value = mensajeDeError(error)
+  } finally {
+    cargando.value = false
+  }
+}
 
-function seleccionarPeriodo(cierre: CierreMensual) {
-  if (periodoSeleccionado.value?.cierremensual_id === cierre.cierremensual_id) {
+function seleccionarPeriodo(cierre: CierreMensualApi) {
+  if (periodoSeleccionado.value?.id === cierre.id) {
     periodoSeleccionado.value = null
   } else {
     periodoSeleccionado.value = cierre
@@ -44,28 +78,42 @@ function seleccionarPeriodo(cierre: CierreMensual) {
 }
 
 function abrirModalCierre() {
-  if (periodoSeleccionado.value?.estado === 'Abierto') {
+  if (periodoSeleccionado.value?.estado === 'ABIERTO') {
     mostrarModalConfirmacion.value = true
   }
 }
 
-function confirmarCierrePeriodo() {
-  if (!periodoSeleccionado.value) return
-
-  const targetId = periodoSeleccionado.value.cierremensual_id
-  const index = cierres.value.findIndex(c => c.cierremensual_id === targetId)
-
-  if (index !== -1) {
-    cierres.value[index] = {
-      ...cierres.value[index],
-      estado: 'Cerrado',
-      fecha_cierre: new Date().toISOString().split('T')[0]
-    }
-    periodoSeleccionado.value = cierres.value[index]
-  }
-
-  mostrarModalConfirmacion.value = false
+function mostrarMensajeExito(texto: string) {
+  mensajeExito.value = texto
+  setTimeout(() => {
+    mensajeExito.value = ''
+  }, 4000)
 }
+
+// PUT: cierra el período en el backend y recién después recarga los datos
+async function confirmarCierrePeriodo() {
+  const seleccionado = periodoSeleccionado.value
+  if (!seleccionado || cerrando.value) return
+
+  const nombre = nombreCierre(seleccionado)
+  cerrando.value = true
+  mensajeError.value = ''
+  try {
+    await cerrarCierre(seleccionado.id)
+    mostrarModalConfirmacion.value = false
+    await cargarDatos()
+    mostrarMensajeExito(`El período ${nombre} fue cerrado.`)
+  } catch (error) {
+    mostrarModalConfirmacion.value = false
+    mensajeError.value = mensajeDeError(error)
+  } finally {
+    cerrando.value = false
+  }
+}
+
+onMounted(() => {
+  cargarDatos()
+})
 </script>
 
 <template>
@@ -74,14 +122,14 @@ function confirmarCierrePeriodo() {
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
       <div>
         <h3 class="fw-bold mb-0 text-dark">Cierre de Período y Libro Diario</h3>
-        <p class="text-muted small mb-0">Control de períodos contables y registro de asientos por partida doble</p>
+        <p class="text-muted small mb-0">Control de períodos contables y registro de asientos del libro diario</p>
       </div>
 
       <!-- Botón Cierre de Período -->
       <div>
         <button
           class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold shadow-sm"
-          :disabled="!periodoSeleccionado || periodoSeleccionado.estado !== 'Abierto'"
+          :disabled="!periodoSeleccionado || periodoSeleccionado.estado !== 'ABIERTO' || cerrando"
           @click="abrirModalCierre"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -92,10 +140,19 @@ function confirmarCierrePeriodo() {
       </div>
     </div>
 
+    <!-- Alertas -->
+    <div v-if="mensajeExito" class="alert alert-success py-2 small mb-3" role="status">
+      {{ mensajeExito }}
+    </div>
+    <div v-if="mensajeError" class="alert alert-danger py-2 small mb-3" role="alert">
+      {{ mensajeError }}
+    </div>
+
     <!-- Tabla Superior: Períodos / Cierres Mensuales -->
     <div class="card shadow-sm border-0 mb-4 overflow-hidden">
-      <div class="card-header bg-dark-custom text-white py-3">
+      <div class="card-header bg-dark-custom text-white py-3 d-flex justify-content-between align-items-center">
         <h5 class="fw-bold mb-0 fs-6">Períodos Mensuales</h5>
+        <span v-if="cargando" class="spinner-border spinner-border-sm text-light" role="status" aria-label="Cargando"></span>
       </div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -104,50 +161,49 @@ function confirmarCierrePeriodo() {
               <th scope="col" class="ps-3 py-2">ID</th>
               <th scope="col" class="py-2">Período / Mes</th>
               <th scope="col" class="py-2">Fecha Cierre</th>
-              <th scope="col" class="py-2">Estado</th>
-              <th scope="col" class="pe-3 py-2 text-end">Monto Total</th>
+              <th scope="col" class="pe-3 py-2">Estado</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="cierre in cierres"
-              :key="cierre.cierremensual_id"
-              :class="{ 'fila-seleccionada': periodoSeleccionado?.cierremensual_id === cierre.cierremensual_id }"
+              :key="cierre.id"
+              :class="{ 'fila-seleccionada': periodoSeleccionado?.id === cierre.id }"
               style="cursor: pointer;"
               @click="seleccionarPeriodo(cierre)"
             >
-              <td class="ps-3 fw-bold text-muted">#{{ cierre.cierremensual_id }}</td>
-              <td class="fw-semibold">{{ cierre.mesNombre }}</td>
-              <td class="text-muted small">{{ cierre.fecha_cierre }}</td>
-              <td>
+              <td class="ps-3 fw-bold text-muted">#{{ cierre.id }}</td>
+              <td class="fw-semibold">{{ nombreCierre(cierre) }}</td>
+              <td class="text-muted small">{{ formatoFecha(cierre.fecha_cierre) }}</td>
+              <td class="pe-3">
                 <span
                   class="badge px-2 py-1"
-                  :class="cierre.estado === 'Abierto' ? 'bg-success' : 'bg-secondary'"
+                  :class="cierre.estado === 'ABIERTO' ? 'bg-success' : 'bg-secondary'"
                 >
-                  {{ cierre.estado }}
+                  {{ textoEstado(cierre) }}
                 </span>
               </td>
-              <td class="pe-3 text-end fw-bold text-dark">
-                ${{ cierre.montoTotal ? cierre.montoTotal.toLocaleString('es-AR') : '0' }}
-              </td>
+            </tr>
+            <tr v-if="!cargando && cierres.length === 0">
+              <td colspan="4" class="text-center py-4 text-muted">No hay períodos registrados.</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Tabla Inferior: Libro Diario (Partida Doble) -->
+    <!-- Tabla Inferior: Libro Diario -->
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="card-header bg-dark-custom text-white d-flex justify-content-between align-items-center py-3">
         <h5 class="fw-bold mb-0 fs-6">Libro Diario (Asientos Contables)</h5>
-        
+
         <!-- Filtro por Mes/Período -->
         <div class="d-flex align-items-center gap-2">
           <label class="small text-white-50 text-nowrap">Filtrar período:</label>
-          <select v-model="filtroPeriodoId" class="form-select form-select-sm select-filtro">
+          <select v-model="filtroCierreId" class="form-select form-select-sm select-filtro">
             <option value="todos">Ver Histórico Completo</option>
-            <option v-for="c in cierres" :key="c.cierremensual_id" :value="c.cierremensual_id">
-              {{ c.mesNombre }} ({{ c.estado }})
+            <option v-for="c in cierres" :key="c.id" :value="c.id">
+              {{ nombreCierre(c) }} ({{ textoEstado(c) }})
             </option>
           </select>
         </div>
@@ -159,35 +215,19 @@ function confirmarCierrePeriodo() {
             <tr>
               <th scope="col" class="ps-3 py-2">ID Asiento</th>
               <th scope="col" class="py-2">Fecha</th>
-              <th scope="col" class="py-2">Descripción del Movimiento</th>
-              <th scope="col" class="py-2 text-end text-success">Debe ($)</th>
-              <th scope="col" class="pe-3 py-2 text-end text-danger">Haber ($)</th>
+              <th scope="col" class="pe-3 py-2">Descripción del Movimiento</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="asiento in asientosFiltrados" :key="asiento.diario_id">
-              <td class="ps-3 text-muted">#{{ asiento.diario_id }}</td>
-              <td class="text-muted small">{{ asiento.fecha }}</td>
-              <td class="fw-semibold text-dark">{{ asiento.descripcion }}</td>
-              <td class="text-end font-monospace text-success fw-bold">
-                {{ asiento.debe > 0 ? `$${asiento.debe.toLocaleString('es-AR')}` : '-' }}
-              </td>
-              <td class="pe-3 text-end font-monospace text-danger fw-bold">
-                {{ asiento.haber > 0 ? `$${asiento.haber.toLocaleString('es-AR')}` : '-' }}
-              </td>
+            <tr v-for="asiento in asientosFiltrados" :key="asiento.id">
+              <td class="ps-3 text-muted">#{{ asiento.id }}</td>
+              <td class="text-muted small">{{ formatoFecha(asiento.fecha) }}</td>
+              <td class="pe-3 fw-semibold text-dark">{{ asiento.descripcion || 'Sin descripción' }}</td>
             </tr>
-            <tr v-if="asientosFiltrados.length === 0">
-              <td colspan="5" class="text-center py-4 text-muted">No se registran asientos en este período.</td>
+            <tr v-if="!cargando && asientosFiltrados.length === 0">
+              <td colspan="3" class="text-center py-4 text-muted">No se registran asientos en este período.</td>
             </tr>
           </tbody>
-          <!-- Balance Footer -->
-          <tfoot class="table-light fw-bold">
-            <tr>
-              <td colspan="3" class="ps-3 text-end text-dark">Sumas Balanceadas:</td>
-              <td class="text-end text-success">${{ totalDebe.toLocaleString('es-AR') }}</td>
-              <td class="pe-3 text-end text-danger">${{ totalHaber.toLocaleString('es-AR') }}</td>
-            </tr>
-          </tfoot>
         </table>
       </div>
     </div>
@@ -200,22 +240,22 @@ function confirmarCierrePeriodo() {
           <div class="modal-content shadow border-0 overflow-hidden">
             <div class="modal-header modal-header-custom text-white px-4 py-3">
               <h5 class="modal-title fw-bold mb-0">Confirmar Cierre de Período</h5>
-              <button type="button" class="btn-close btn-close-white" @click="mostrarModalConfirmacion = false"></button>
+              <button type="button" class="btn-close btn-close-white" :disabled="cerrando" @click="mostrarModalConfirmacion = false"></button>
             </div>
             <div class="modal-body p-4 bg-white">
               <p class="text-dark mb-2">
-                ¿Está seguro de cerrar el período <strong>{{ periodoSeleccionado.mesNombre }}</strong>?
+                ¿Está seguro de cerrar el período <strong>{{ nombreCierre(periodoSeleccionado) }}</strong>?
               </p>
               <div class="alert alert-warning small mb-0">
-                Una vez cerrado el período, los asientos contables quedarán bloqueados para modificaciones.
+                Una vez cerrado el período no se puede volver a modificar.
               </div>
             </div>
             <div class="modal-footer bg-light px-4 py-3 border-top">
-              <button type="button" class="btn btn-secondary px-3" @click="mostrarModalConfirmacion = false">
+              <button type="button" class="btn btn-secondary px-3" :disabled="cerrando" @click="mostrarModalConfirmacion = false">
                 Cancelar
               </button>
-              <button type="button" class="btn btn-coralon px-4 fw-semibold" @click="confirmarCierrePeriodo">
-                Confirmar Cierre
+              <button type="button" class="btn btn-coralon px-4 fw-semibold" :disabled="cerrando" @click="confirmarCierrePeriodo">
+                {{ cerrando ? 'Cerrando…' : 'Confirmar Cierre' }}
               </button>
             </div>
           </div>
@@ -246,7 +286,7 @@ function confirmarCierrePeriodo() {
   transition: all 0.2s ease-in-out;
 }
 
-.btn-coralon:hover {
+.btn-coralon:hover:not(:disabled) {
   background-color: #ff7a45;
   border-color: #ff7a45;
   color: #ffffff;

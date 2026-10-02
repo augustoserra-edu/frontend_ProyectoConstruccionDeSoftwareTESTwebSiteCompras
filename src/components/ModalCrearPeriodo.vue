@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { Periodo } from '../types/finanzas'
+import type { PeriodoApi } from '../types/finanzasApi'
 
 const props = defineProps<{
   mostrar: boolean
-  periodosExistentes: Periodo[]
+  periodosExistentes: PeriodoApi[]
 }>()
 
 const emit = defineEmits<{
@@ -27,8 +27,9 @@ const meses = [
   { id: 12, nombre: 'Diciembre' }
 ]
 
-const anioSeleccionado = ref<number>(2026)
-const mesSeleccionado = ref<number>(10)
+const hoy = new Date()
+const anioSeleccionado = ref<number>(hoy.getFullYear())
+const mesSeleccionado = ref<number>(hoy.getMonth() + 1)
 const errorValidacion = ref<string>('')
 
 // Validación protegida contra tipos no-array
