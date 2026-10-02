@@ -14,7 +14,7 @@ import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
 import FinanzasCierreView from './views/FinanzasCierreView.vue'
 import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
 
-const estaAutenticado = ref(!!localStorage.getItem('accessToken'))
+const estaAutenticado = ref(!!localStorage.getItem('access_token'))
 
 function alIniciarSesion() {
   estaAutenticado.value = true

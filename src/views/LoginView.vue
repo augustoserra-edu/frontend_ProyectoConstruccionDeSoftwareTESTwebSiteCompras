@@ -20,8 +20,8 @@ async function iniciarSesion() {
       `${import.meta.env.VITE_API_BASE_URL}/auth/login/`,
       { username: usuario.value, password: contrasena.value }
     )
-    localStorage.setItem('accessToken', respuesta.data.access)
-    localStorage.setItem('refreshToken', respuesta.data.refresh)
+    localStorage.setItem('access_token', respuesta.data.access)
+    localStorage.setItem('refresh_token', respuesta.data.refresh)
     emit('sesion-iniciada')
   } catch {
     mensajeError.value = 'Usuario o contraseña incorrectos.'
