@@ -25,7 +25,7 @@ function setModule(modulo: string) {
         <span class="badge-logo rounded-1 d-flex align-items-center justify-content-center fw-bold">
           EC
         </span>
-        <span class="brand-text">EL CORALON</span>
+        <span class="brand-text">EL CORRALON</span>
       </a>
 
       <!-- Botón Hamburguesa Móvil -->
