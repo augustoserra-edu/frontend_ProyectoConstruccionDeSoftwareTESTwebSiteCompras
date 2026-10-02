@@ -1,54 +1,33 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { PROVEEDORES_MOCK, type Proveedor, type NuevoProveedor } from '../types/proveedor'
-import { PRODUCTOS_MOCK } from '../types/producto'
-import { obtenerProveedores, crearProveedor, actualizarProveedor } from '../services/proveedoresService'
+import type { Proveedor, NuevoProveedor } from '../types/proveedor'
+import { obtenerProveedores, crearProveedor, actualizarProveedor, relacionMultipleDisponible } from '../services/proveedoresService'
+import { obtenerProductosProveedor, type ProductoProveedor } from '../services/productosService'
+import { mensajeErrorApi } from '../utils/erroresApi'
 import ModalProveedor from '../components/ModalProveedor.vue'
 
 const listaProveedores = ref<Proveedor[]>([])
+const productos = ref<ProductoProveedor[]>([])
 const cargando = ref(false)
+const guardando = ref(false)
 const mensajeError = ref('')
+const errorGuardado = ref('')
 const mensajeExito = ref('')
-
 const filtroBusqueda = ref('')
 const proveedorSeleccionado = ref<Proveedor | null>(null)
-
 const mostrarModal = ref(false)
 const proveedorParaEditar = ref<Proveedor | null>(null)
+const nombreProducto = (id: number) => productos.value.find(p => p.id === id)?.nombre ?? `Producto #${id}`
 
-// GET: Cargar proveedores con validación de tipo array y fallback a MOCK
 async function cargarProveedores() {
   cargando.value = true
   mensajeError.value = ''
   try {
-    const respuesta = await obtenerProveedores()
-    
-    let datosCrudos: any[] = []
-    if (Array.isArray(respuesta)) {
-      datosCrudos = respuesta
-    } else if (respuesta && typeof respuesta === 'object' && Array.isArray((respuesta as any).results)) {
-      datosCrudos = (respuesta as any).results
-    } else {
-      console.warn('La respuesta de la API no es un array válido. Usando datos mock.', respuesta)
-      listaProveedores.value = [...PROVEEDORES_MOCK]
-      return
-    }
-
-    // Normalización de propiedades para tolerar snake_case o camelCase
-    listaProveedores.value = datosCrudos.map((item: any) => ({
-      proveedor_id: Number(item.proveedor_id ?? item.id ?? 0),
-      nombre: String(item.nombre ?? ''),
-      apellido: String(item.apellido ?? ''),
-      email: String(item.email ?? ''),
-      telefono: String(item.telefono ?? ''),
-      cuit: String(item.cuit ?? ''),
-      direccion: String(item.direccion ?? ''),
-      producto_id: Number(item.producto_id ?? 1),
-      producto_nombre: item.producto_nombre ?? item.producto ?? 'Asignado'
-    }))
+    const [proveedores, catalogo] = await Promise.all([obtenerProveedores(), obtenerProductosProveedor()])
+    listaProveedores.value = proveedores
+    productos.value = catalogo
   } catch (error) {
-    console.warn('Backend no disponible o error de autenticación. Usando datos mock.', error)
-    listaProveedores.value = [...PROVEEDORES_MOCK]
+    mensajeError.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error))
   } finally {
     cargando.value = false
   }
@@ -56,115 +35,61 @@ async function cargarProveedores() {
 
 const proveedoresFiltrados = computed(() => {
   const busqueda = filtroBusqueda.value.toLowerCase().trim()
-  if (!busqueda) return listaProveedores.value
-
-  return listaProveedores.value.filter((p) =>
-    p.nombre.toLowerCase().includes(busqueda) ||
-    p.apellido.toLowerCase().includes(busqueda) ||
-    p.cuit.includes(busqueda) ||
-    p.email.toLowerCase().includes(busqueda) ||
-    (p.producto_nombre && p.producto_nombre.toLowerCase().includes(busqueda))
+  return listaProveedores.value.filter(p =>
+    [p.nombre, p.apellido, p.cuit, p.email, ...p.productos.map(nombreProducto)]
+      .some(valor => valor.toLowerCase().includes(busqueda))
   )
 })
 
 function seleccionarFila(proveedor: Proveedor) {
-  if (proveedorSeleccionado.value?.proveedor_id === proveedor.proveedor_id) {
-    proveedorSeleccionado.value = null
-  } else {
-    proveedorSeleccionado.value = proveedor
-  }
+  proveedorSeleccionado.value = proveedorSeleccionado.value?.proveedor_id === proveedor.proveedor_id ? null : proveedor
 }
 
 function abrirModalCrear() {
   proveedorParaEditar.value = null
+  errorGuardado.value = ''
   mostrarModal.value = true
 }
 
 function abrirModalEditar() {
   if (!proveedorSeleccionado.value) return
-  proveedorParaEditar.value = { ...proveedorSeleccionado.value }
+  proveedorParaEditar.value = { ...proveedorSeleccionado.value, productos: [...proveedorSeleccionado.value.productos] }
+  errorGuardado.value = ''
   mostrarModal.value = true
 }
 
 function cerrarModal() {
+  if (guardando.value) return
   mostrarModal.value = false
   proveedorParaEditar.value = null
 }
 
-function mostrarMensaje(texto: string, tipo: 'exito' | 'error') {
-  if (tipo === 'exito') {
-    mensajeExito.value = texto
-    setTimeout(() => { mensajeExito.value = '' }, 4000)
-  } else {
-    mensajeError.value = texto
-    setTimeout(() => { mensajeError.value = '' }, 5000)
+async function guardarProveedor(datos: NuevoProveedor) {
+  if (guardando.value) return
+  guardando.value = true
+  errorGuardado.value = ''
+  mensajeExito.value = ''
+  try {
+    const id = proveedorParaEditar.value?.proveedor_id
+    const guardado = id ? await actualizarProveedor(id, datos) : await crearProveedor(datos)
+    if (id) {
+      const index = listaProveedores.value.findIndex(p => p.proveedor_id === id)
+      if (index !== -1) listaProveedores.value[index] = guardado
+      proveedorSeleccionado.value = guardado
+    } else {
+      listaProveedores.value.unshift(guardado)
+    }
+    mensajeExito.value = id ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.'
+    mostrarModal.value = false
+    proveedorParaEditar.value = null
+  } catch (error) {
+    errorGuardado.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error))
+  } finally {
+    guardando.value = false
   }
 }
 
-// POST / PUT: Guardar cambios conectando con el backend
-async function guardarProveedor(datos: Proveedor | NuevoProveedor) {
-  const prodEncontrado = PRODUCTOS_MOCK.find(p => p.producto_id === datos.producto_id)
-  const nombreProd = prodEncontrado ? prodEncontrado.nombre : (datos.producto_nombre || 'Sin asignar')
-
-  // EDICIÓN (PUT)
-  if ('proveedor_id' in datos && datos.proveedor_id) {
-    try {
-      const actualizado = await actualizarProveedor(datos.proveedor_id, datos)
-      const index = listaProveedores.value.findIndex(p => p.proveedor_id === datos.proveedor_id)
-      if (index !== -1) {
-        const itemActualizado: Proveedor = {
-          ...actualizado,
-          producto_nombre: nombreProd
-        }
-        listaProveedores.value[index] = itemActualizado
-        proveedorSeleccionado.value = itemActualizado
-      }
-      mostrarMensaje('Proveedor actualizado con éxito en el backend.', 'exito')
-    } catch (error) {
-      console.warn('Error al actualizar en backend. Aplicando cambio en memoria.', error)
-      const index = listaProveedores.value.findIndex(p => p.proveedor_id === datos.proveedor_id)
-      if (index !== -1) {
-        const itemActualizado: Proveedor = {
-          ...(datos as Proveedor),
-          producto_nombre: nombreProd
-        }
-        listaProveedores.value[index] = itemActualizado
-        proveedorSeleccionado.value = itemActualizado
-      }
-      mostrarMensaje('Proveedor actualizado en memoria local (sin persistencia en API).', 'exito')
-    }
-  } 
-  // CREACIÓN (POST)
-  else {
-    try {
-      const nuevo = await crearProveedor(datos as NuevoProveedor)
-      const proveedorNormalizado: Proveedor = {
-        ...nuevo,
-        producto_nombre: nombreProd
-      }
-      listaProveedores.value.unshift(proveedorNormalizado)
-      mostrarMensaje('Proveedor creado con éxito en el backend.', 'exito')
-    } catch (error) {
-      console.warn('Error al crear en backend. Guardando en memoria local.', error)
-      const nuevoId = listaProveedores.value.length > 0 
-        ? Math.max(...listaProveedores.value.map(p => p.proveedor_id)) + 1 
-        : 1
-
-      const nuevo: Proveedor = {
-        ...(datos as NuevoProveedor),
-        proveedor_id: nuevoId,
-        producto_nombre: nombreProd
-      }
-      listaProveedores.value.unshift(nuevo)
-      mostrarMensaje('Proveedor guardado en memoria local (sin persistencia en API).', 'exito')
-    }
-  }
-  cerrarModal()
-}
-
-onMounted(() => {
-  cargarProveedores()
-})
+onMounted(cargarProveedores)
 </script>
 
 <template>
@@ -179,7 +104,7 @@ onMounted(() => {
       <div class="d-flex gap-2">
         <button 
           class="btn btn-outline-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
-          :disabled="!proveedorSeleccionado"
+          :disabled="!proveedorSeleccionado || cargando || !relacionMultipleDisponible"
           @click="abrirModalEditar"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -190,7 +115,7 @@ onMounted(() => {
 
         <button 
           class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
-          @click="abrirModalCrear"
+          :disabled="cargando || !!mensajeError || !relacionMultipleDisponible" @click="abrirModalCrear"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
             <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
@@ -201,11 +126,14 @@ onMounted(() => {
     </div>
 
     <!-- Alertas -->
+    <div v-if="!relacionMultipleDisponible" class="alert alert-warning" role="alert">
+      El servidor todavía usa un solo producto por proveedor. Podés consultar los registros existentes; para crear o editar con varios productos es necesario actualizar el backend.
+    </div>
     <div v-if="mensajeExito" class="alert alert-success py-2 small mb-3" role="status">
       {{ mensajeExito }}
     </div>
     <div v-if="mensajeError" class="alert alert-danger py-2 small mb-3" role="alert">
-      {{ mensajeError }}
+      {{ mensajeError }} <button type="button" class="btn btn-sm btn-outline-danger ms-2" :disabled="cargando" @click="cargarProveedores">Reintentar</button>
     </div>
 
     <!-- Buscador -->
@@ -241,7 +169,7 @@ onMounted(() => {
               <th scope="col" class="py-3">Nombre / Razón Social</th>
               <th scope="col" class="py-3">Apellido / Denominación</th>
               <th scope="col" class="py-3">CUIT</th>
-              <th scope="col" class="py-3">Producto Suministrado</th>
+              <th scope="col" class="py-3">Productos Suministrados</th>
               <th scope="col" class="py-3">Teléfono</th>
               <th scope="col" class="py-3">Email</th>
               <th scope="col" class="py-3 pe-3">Dirección</th>
@@ -260,8 +188,8 @@ onMounted(() => {
               <td>{{ proveedor.apellido }}</td>
               <td><span class="badge badge-cuit font-monospace">{{ proveedor.cuit }}</span></td>
               <td>
-                <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle px-2 py-1">
-                  #{{ proveedor.producto_id }} - {{ proveedor.producto_nombre || 'Producto Asignado' }}
+                <span v-for="id in proveedor.productos" :key="id" class="badge me-1 mb-1 bg-secondary-subtle text-dark border border-secondary-subtle px-2 py-1">
+                  #{{ id }} - {{ nombreProducto(id) }}
                 </span>
               </td>
               <td>{{ proveedor.telefono }}</td>
@@ -286,7 +214,7 @@ onMounted(() => {
 
     <ModalProveedor
       :mostrar="mostrarModal"
-      :proveedor-a-editar="proveedorParaEditar"
+      :proveedor-a-editar="proveedorParaEditar" :productos="productos" :guardando="guardando" :error="errorGuardado"
       @cerrar="cerrarModal"
       @guardar="guardarProveedor"
     />

@@ -2,15 +2,21 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { normalizarBusqueda } from '../utils/busqueda'
 import type { OrdenCompraCabecera, OrdenCompraDetalle } from '../types/compra'
-import type { FacturaCabecera } from '../types/finanzas'
-import { PROVEEDORES_MOCK } from '../types/proveedor'
-import { PRODUCTOS_MOCK } from '../types/producto'
+import type { FacturaCompra, EstadoCompra } from '../types/compra'
+import { transicionPermitida, estadoCompraReconocido } from '../services/comprasService'
+import type { Proveedor } from '../types/proveedor'
+import type { ProductoProveedor } from '../services/productosService'
 
 const props = defineProps<{
   mostrar: boolean
   ordenInicialId?: number | null
   ordenes: OrdenCompraCabecera[]
-  facturas: FacturaCabecera[]
+  facturas: FacturaCompra[]
+  proveedores: Proveedor[]
+  productos: ProductoProveedor[]
+  estados: EstadoCompra[]
+  cargandoFacturas: boolean
+  errorFacturas: string
   detalles: OrdenCompraDetalle[]
   cambiosHabilitados: boolean
   actualizando: boolean
@@ -19,6 +25,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (e: 'cerrar'): void
+  (e: 'reintentar-facturas'): void
   (e: 'alternar-cambios'): void
   (e: 'cambiar-estado', ordenId: number, estado: OrdenCompraCabecera['estado']): void
 }>()
@@ -30,8 +37,8 @@ const buscador = ref<HTMLInputElement | null>(null)
 let focoAnterior: HTMLElement | null = null
 const dialogo = ref<HTMLElement | null>(null)
 const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
-const proveedor = (id: number) => PROVEEDORES_MOCK.find(item => item.proveedor_id === id)
-const nombreProducto = (id: number) => PRODUCTOS_MOCK.find(item => item.producto_id === id)?.nombre ?? `Producto #${id}`
+const proveedor = (id: number) => props.proveedores.find(item => item.proveedor_id === id)
+const nombreProducto = (id: number) => props.productos.find(item => item.id === id)?.nombre ?? `Producto #${id}`
 const facturasDeOrden = (id: number) => props.facturas.filter(item => item.ordencompra_id === id)
 
 const ordenesFiltradas = computed(() => {
@@ -40,7 +47,7 @@ const ordenesFiltradas = computed(() => {
     if (filtroEstado.value !== '' && orden.estado !== filtroEstado.value) return false
     const proveedorOrden = proveedor(orden.proveedor_id)
     return normalizarBusqueda([
-      orden.ordencompra_id, orden.solicitante, orden.fecha,
+      orden.ordencompra_id, orden.fecha,
       proveedorOrden?.nombre, proveedorOrden?.apellido,
       facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(' ')
     ].join(' ')).includes(texto)
@@ -55,8 +62,7 @@ const facturasSeleccionadas = computed(() => seleccionada.value ? facturasDeOrde
 function cambiarEstado(estado: OrdenCompraCabecera['estado']) {
   if (!seleccionada.value || !props.cambiosHabilitados || props.actualizando) return
   const actual = seleccionada.value.estado
-  if (!(actual === 'pendiente' && (estado === 'aprobada' || estado === 'rechazada')) &&
-      !(actual === null && estado === 'recibida')) return
+  if (!transicionPermitida(actual, estado)) return
   emit('cambiar-estado', seleccionada.value.ordencompra_id, estado)
 }
 
@@ -121,15 +127,11 @@ function mantenerFoco(event: KeyboardEvent) {
             <div class="card border-0 shadow-sm mb-4">
               <div class="card-body">
                 <label for="buscar-orden-consulta" class="form-label small fw-semibold">Buscar orden</label>
-                <input id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, solicitante, proveedor, fecha o comprobante..." />
+                <input id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, proveedor, fecha o comprobante..." />
                 <label for="estado-orden-consulta" class="form-label small fw-semibold mt-3">Filtrar por estado</label>
                 <select id="estado-orden-consulta" v-model="filtroEstado" class="form-select" :disabled="actualizando">
                   <option value="">Todos los estados</option>
-                  <option :value="null">Sin recibir</option>
-                  <option value="recibida">recibida</option>
-                  <option value="pendiente">pendiente</option>
-                  <option value="aprobada">aprobada</option>
-                  <option value="rechazada">rechazada</option>
+<option v-for="estado in estados" :key="estado.estadoordencompra_id" :value="estado.nombre.toLowerCase()">{{ estado.nombre }}</option>
                 </select>
                 <small class="text-muted" role="status">{{ ordenesFiltradas.length }} orden(es) encontradas</small>
               </div>
@@ -142,11 +144,11 @@ function mantenerFoco(event: KeyboardEvent) {
                     <button v-for="orden in ordenesFiltradas" :key="orden.ordencompra_id" type="button" class="list-group-item list-group-item-action p-3" :disabled="actualizando" :class="{ seleccionada: ordenId === orden.ordencompra_id }" :aria-pressed="ordenId === orden.ordencompra_id" @click="ordenId = orden.ordencompra_id">
                       <span class="d-flex justify-content-between gap-2 mb-2">
                         <strong>Orden #{{ orden.ordencompra_id }}</strong>
-                        <span class="badge align-self-start" :class="orden.estado === 'aprobada' ? 'bg-success' : orden.estado === 'rechazada' ? 'bg-danger' : orden.estado === 'recibida' ? 'bg-primary' : orden.estado === null ? 'bg-secondary' : 'bg-warning text-dark'">{{ orden.estado ?? 'Sin recibir' }}</span>
+                        <span class="badge align-self-start" :class="orden.estado === 'aprobada' ? 'bg-success' : orden.estado === 'rechazada' ? 'bg-danger' : orden.estado === 'recibida' ? 'bg-primary' : 'bg-warning text-dark'">{{ orden.estado }}</span>
                       </span>
-                      <span class="d-block fw-semibold">{{ orden.solicitante }}</span>
+                      <span class="d-block fw-semibold">{{ proveedor(orden.proveedor_id)?.nombre }} {{ proveedor(orden.proveedor_id)?.apellido }}</span>
                       <span class="d-flex justify-content-between gap-2 small mt-2"><span class="text-muted">{{ orden.fecha }}</span><strong>{{ moneda(orden.total) }}</strong></span>
-                      <span class="d-block small text-muted mt-2">{{ facturasDeOrden(orden.ordencompra_id).length ? facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(', ') : 'Sin factura asociada' }}</span>
+                      <span class="d-block small text-muted mt-2">{{ cargandoFacturas ? 'Cargando comprobantes…' : errorFacturas ? 'Comprobantes no disponibles' : facturasDeOrden(orden.ordencompra_id).length ? facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(', ') : 'Sin factura asociada' }}</span>
                     </button>
                     <p v-if="!ordenesFiltradas.length" class="text-muted text-center p-4 mb-0">No se encontraron órdenes.</p>
                   </div>
@@ -159,16 +161,16 @@ function mantenerFoco(event: KeyboardEvent) {
                     <div class="border rounded p-3 mb-4 bg-light">
                       <span class="small text-muted d-block mb-2">Estado de la orden</span>
                       <div class="d-flex flex-wrap align-items-center gap-2">
-                        <span class="badge me-auto" :class="seleccionada.estado === 'aprobada' ? 'bg-success' : seleccionada.estado === 'rechazada' ? 'bg-danger' : seleccionada.estado === 'recibida' ? 'bg-primary' : seleccionada.estado === null ? 'bg-secondary' : 'bg-warning text-dark'">
-                          {{ seleccionada.estado ?? 'Sin recibir' }}
+                        <span class="badge me-auto" :class="seleccionada.estado === 'aprobada' ? 'bg-success' : seleccionada.estado === 'rechazada' ? 'bg-danger' : seleccionada.estado === 'recibida' ? 'bg-primary' : 'bg-warning text-dark'">
+                          {{ seleccionada.estado }}
                         </span>
 
-                        <template v-if="seleccionada.estado === 'pendiente'">
+                        <template v-if="['pendiente', 'aprobada'].includes(seleccionada.estado)">
                           <button
                             type="button"
                             class="btn btn-sm btn-outline-success"
                             :disabled="!cambiosHabilitados || actualizando || !detallesSeleccionados.length"
-                            @click="cambiarEstado('aprobada')"
+                            v-if="seleccionada.estado === 'pendiente'" @click="cambiarEstado('aprobada')"
                           >
                             Aprobar
                           </button>
@@ -183,19 +185,18 @@ function mantenerFoco(event: KeyboardEvent) {
                         </template>
 
                         <button
-                          v-else-if="seleccionada.estado === null"
+                          v-if="seleccionada.estado === 'aprobada'"
                           type="button"
                           class="btn btn-sm btn-outline-primary"
                           :disabled="!cambiosHabilitados || actualizando"
                           @click="cambiarEstado('recibida')"
                         >Recibir</button>
-                        <span v-else class="text-muted small fst-italic">
-                          Estado bloqueado (no editable)
+                        <span v-if="!['pendiente', 'aprobada'].includes(seleccionada.estado)" class="text-muted small fst-italic">
+                          {{ estadoCompraReconocido(seleccionada.estado) ? 'Estado final (no editable)' : 'Este estado no tiene transiciones configuradas. Es necesario corregirlo en el backend.' }}
                         </span>
                       </div>
                     </div>
                     <div class="row g-3 mb-4">
-                      <div class="col-sm-6"><span class="small text-muted d-block">Solicitante interno</span><strong>{{ seleccionada.solicitante }}</strong></div>
                       <div class="col-sm-6"><span class="small text-muted d-block">Fecha de la orden</span><strong>{{ seleccionada.fecha }}</strong></div>
                       <div class="col-12 bg-light rounded p-3">
                         <span class="small text-muted d-block">Proveedor</span>
@@ -217,14 +218,14 @@ function mantenerFoco(event: KeyboardEvent) {
                       </table>
                     </div>
                     <p class="text-end fw-bold mt-3">Total de la orden: <span class="text-coralon">{{ moneda(seleccionada.total) }}</span></p>
-                    <h6 class="fw-bold border-top pt-3">Comprobantes asociados</h6>
+                    <h6 class="fw-bold border-top pt-3">Comprobantes asociados</h6><p v-if="cargandoFacturas" role="status">Cargando comprobantes…</p><div v-if="errorFacturas" class="alert alert-warning" role="alert">{{ errorFacturas }} <button class="btn btn-sm btn-outline-secondary" @click="emit('reintentar-facturas')">Reintentar</button></div>
                     <div v-for="factura in facturasSeleccionadas" :key="factura.facturacabecera_id" class="bg-light border rounded p-3 mt-2">
                       <div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><strong>{{ factura.tipo }} · {{ factura.numero }}</strong><span class="small text-muted">{{ factura.fecha }}</span></div>
                       <div class="d-flex justify-content-between"><span>Subtotal</span><span>{{ moneda(factura.subtotal) }}</span></div>
                       <div class="d-flex justify-content-between"><span>Impuesto</span><span>{{ moneda(factura.impuesto) }}</span></div>
                       <div class="d-flex justify-content-between fw-bold border-top pt-2 mt-2"><span>Total del comprobante</span><span class="text-coralon">{{ moneda(factura.total) }}</span></div>
                     </div>
-                    <p v-if="!facturasSeleccionadas.length" class="text-muted small mb-0">Esta orden todavía no tiene una factura asociada.</p>
+                    <p v-if="!cargandoFacturas && !errorFacturas && !facturasSeleccionadas.length" class="text-muted small mb-0">Esta orden todavía no tiene una factura asociada.</p>
                   </div>
                 </section>
                 <div v-else class="card border-0 shadow-sm p-5 text-center text-muted">Seleccioná una orden para consultar sus productos y comprobantes.</div>
