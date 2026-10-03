@@ -56,6 +56,23 @@ import api from '@/lib/api' // o ruta relativa: '../lib/api'
 const { data } = await api.get('/usuarios')
 ```
 
+## Despliegue en Vercel
+
+El archivo `vercel.json` configura un proxy para `/api/*` hacia
+`https://corralon.ordema.app/api/*`. El navegador consulta el mismo dominio
+del frontend y Vercel reenvía las peticiones al backend por HTTPS, evitando
+el bloqueo CORS sin modificar el backend.
+
+El comando de build de Vercel fija `VITE_API_BASE_URL=/api`, incluso si el
+panel contiene un valor anterior. No agregar `:8080` al destino del proxy:
+ese puerto no acepta HTTPS. La configuración local sigue usando su variable
+`VITE_API_BASE_URL` habitual.
+
+Para aplicar esta configuración, desplegar un commit que incluya `vercel.json`.
+Redeploy de un commit anterior no incorpora este archivo. Después del despliegue,
+comprobar en Network que el login hace POST a `/api/auth/login/` en el dominio
+de Vercel y que devuelve los tokens con credenciales válidas.
+
 ## Flujo de trabajo con Git
 
 - La rama `main` es estable y protegida; **no se commitea directamente sobre `main`**.
