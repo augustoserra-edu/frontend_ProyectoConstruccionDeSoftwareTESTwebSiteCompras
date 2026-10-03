@@ -1,222 +1,113 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import ModalConfirmacion from '../components/ModalConfirmacion.vue'
-import { normalizarBusqueda } from '../utils/busqueda'
 import ModalNuevaOrdenCompra from '../components/ModalNuevaOrdenCompra.vue'
 import ModalVerOrdenesCompra from '../components/ModalVerOrdenesCompra.vue'
-import { PROVEEDORES_MOCK } from '../types/proveedor'
-import { PRODUCTOS_MOCK } from '../types/producto'
-import {
-  CABECERAS_COMPRA_MOCK,
-  DETALLES_COMPRA_MOCK,
-  FACTURAS_COMPRA_MOCK,
-  type NuevaOrdenCompra,
-  type NuevaOrdenCompraCabecera,
-  type NuevoOrdenCompraDetalle,
-  type OrdenCompraCabecera,
-  type OrdenCompraDetalle
-} from '../types/compra'
-import type { FacturaCabecera } from '../types/finanzas'
+import { normalizarBusqueda } from '../utils/busqueda'
+import { mensajeErrorApi } from '../utils/erroresApi'
+import { obtenerProveedores } from '../services/proveedoresService'
+import { obtenerProductosProveedor, type ProductoProveedor } from '../services/productosService'
+import { actualizarEstadoCompra, crearOrdenCompra, obtenerEstadosCompra, obtenerFacturasCompra, obtenerOrdenesCompra, presentarDetalles, presentarOrden, transicionPermitida, type OrdenCompraAPI } from '../services/comprasService'
+import type { Proveedor } from '../types/proveedor'
+import { estadoCompraReconocido } from '../services/comprasService'
+import type { EstadoCompra, FacturaCompra, NuevaOrdenCompra } from '../types/compra'
 
-// Simulación en memoria de las operaciones de órdenes de compra.
-const cabecerasCompra = ref<OrdenCompraCabecera[]>(CABECERAS_COMPRA_MOCK.map(item => ({ ...item })))
-const detallesCompra = ref<OrdenCompraDetalle[]>(DETALLES_COMPRA_MOCK.map(item => ({ ...item })))
-const mostrarConsultaOrdenes = ref(false)
-const ordenConsultaId = ref<number | null>(null)
-const facturasConsultadas = ref<FacturaCabecera[]>([])
-const detallesConsultados = ref<OrdenCompraDetalle[]>([])
-
-async function getFacturaCabecerasCompra(): Promise<FacturaCabecera[]> {
-  return FACTURAS_COMPRA_MOCK.filter(item => item.ordencompra_id !== null).map(item => ({ ...item }))
-}
-
-async function abrirConsultaOrdenes(ordenId: number | null = null) {
-  if (accionesBloqueadas.value) return
-  cargando.value = true
-  errorConsulta.value = ''
-  try {
-    errorAprobacion.value = ''
-    mensaje.value = ''
-    const [facturas, detalles] = await Promise.all([getFacturaCabecerasCompra(), getOrdenCompraDetalles()])
-    facturasConsultadas.value = facturas
-    detallesConsultados.value = detalles
-    ordenConsultaId.value = ordenId
-    mostrarConsultaOrdenes.value = true
-  } catch (error) {
-    errorConsulta.value = error instanceof Error ? error.message : 'No se pudieron consultar las órdenes.'
-  } finally {
-    cargando.value = false
-  }
-}
-
-async function getOrdenCompraCabeceras(): Promise<OrdenCompraCabecera[]> {
-  return cabecerasCompra.value.map(item => ({ ...item }))
-}
-
-async function getOrdenCompraDetalles(): Promise<OrdenCompraDetalle[]> {
-  return detallesCompra.value.map(item => ({ ...item }))
-}
-
-async function aprobarOrdenCompra(ordencompra_id: number): Promise<OrdenCompraCabecera> {
-  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
-  if (!cabecera) throw new Error('No existe la orden de compra.')
-  if (cabecera.estado !== 'pendiente') throw new Error('Solo se pueden aprobar órdenes pendientes.')
-  if (!detallesCompra.value.some(item => item.ordencompra_id === ordencompra_id)) {
-    throw new Error('No se puede aprobar una orden sin productos registrados.')
-  }
-  cabecera.estado = 'aprobada'
-  return { ...cabecera }
-}
-
-async function rechazarOrdenCompra(ordencompra_id: number): Promise<OrdenCompraCabecera> {
-  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
-  if (!cabecera) throw new Error('No existe la orden de compra.')
-  if (cabecera.estado !== 'pendiente') throw new Error('Solo se pueden rechazar órdenes pendientes.')
-  cabecera.estado = 'rechazada'
-  return { ...cabecera }
-}
-
-async function postOrdenCompraCabecera(datos: NuevaOrdenCompraCabecera): Promise<OrdenCompraCabecera> {
-  if (!PROVEEDORES_MOCK.some(item => item.proveedor_id === datos.proveedor_id)
-    || !datos.solicitante?.trim()
-    || !/^\d{4}-\d{2}-\d{2}$/.test(datos.fecha)
-    || !Number.isFinite(datos.total) || datos.total <= 0) {
-    throw new Error('La cabecera requiere solicitante interno, proveedor, fecha y total válidos.')
-  }
-  const cabecera: OrdenCompraCabecera = {
-    ...datos,
-    solicitante: datos.solicitante.trim(),
-    ordencompra_id: Math.max(0, ...cabecerasCompra.value.map(item => item.ordencompra_id)) + 1,
-    estado: null
-  }
-  cabecerasCompra.value.push(cabecera)
-  return { ...cabecera }
-}
-
-async function postOrdenCompraDetalle(
-  ordencompra_id: number,
-  items: NuevoOrdenCompraDetalle[]
-): Promise<void> {
-  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
-  if (!cabecera) throw new Error('No existe la cabecera de la orden.')
-  if (new Set(items.map(item => item.producto_id)).size !== items.length) {
-    throw new Error('Cada producto puede aparecer una sola vez en la orden de compra.')
-  }
-  if (detallesCompra.value.some(item => item.ordencompra_id === ordencompra_id)) {
-    throw new Error('La orden ya tiene detalles registrados.')
-  }
-  if (!items.length || items.some(item =>
-    !PRODUCTOS_MOCK.some(producto => producto.producto_id === item.producto_id)
-    || !Number.isSafeInteger(item.cantidad) || item.cantidad <= 0
-    || !Number.isFinite(item.preciounitario) || item.preciounitario <= 0
-  )) throw new Error('Cada detalle requiere un producto válido, una cantidad entera mayor a cero y un precio válido.')
-
-  const primerId = Math.max(0, ...detallesCompra.value.map(item => item.ordencompradetalle_id)) + 1
-  const nuevos = items.map((item, index) => ({
-    ...item,
-    ordencompra_id,
-    ordencompradetalle_id: primerId + index,
-    subtotal: Math.round(item.cantidad * item.preciounitario * 100) / 100
-  }))
-  const total = Math.round(nuevos.reduce((suma, item) => suma + item.subtotal, 0) * 100) / 100
-  if (total !== cabecera.total) throw new Error('El total de los detalles no coincide con la cabecera.')
-  detallesCompra.value.push(...nuevos)
-}
-
-interface OrdenCompraListado {
-  orden_id: number
-  solicitante: string
-  fecha: string
-  estado_nombre: OrdenCompraCabecera['estado']
-  total: number
-  detalles: {
-    detalle_id: number
-    producto_nombre: string
-    cantidad: number
-  }[]
-}
-
-const ordenes = ref<OrdenCompraListado[]>([])
-const consultado = ref(false)
+const ordenesAPI = ref<OrdenCompraAPI[]>([])
+const proveedores = ref<Proveedor[]>([])
+const productos = ref<ProductoProveedor[]>([])
+const estados = ref<EstadoCompra[]>([])
+const facturas = ref<FacturaCompra[]>([])
 const cargando = ref(false)
 const guardando = ref(false)
-const mostrarNuevaOrden = ref(false)
-const cabeceraCreadaId = ref<number | null>(null)
-const mensaje = ref('')
+const guardandoEstado = ref(false)
+const cargandoFacturas = ref(false)
+const catalogosListos = ref(false)
 const errorConsulta = ref('')
 const errorGuardado = ref('')
-const aprobandoId = ref<number | null>(null)
-const errorAprobacion = ref('')
-const rechazandoId = ref<number | null>(null)
-const guardandoEstado = ref(false)
-const cambiosEstadoHabilitados = ref(false)
+const errorEstado = ref('')
+const errorFacturas = ref('')
+const mensaje = ref('')
+const mostrarNuevaOrden = ref(false)
+const mostrarConsultaOrdenes = ref(false)
+const ordenConsultaId = ref<number | null>(null)
+const cambiosHabilitados = ref(false)
+const filtroBusqueda = ref('')
+const filtroEstado = ref('')
+type CampoOrden = 'numero' | 'proveedor' | 'fecha'
+const campoOrden = ref<CampoOrden>('numero')
+const sentidoOrden = ref<'asc' | 'desc'>('desc')
+function ordenarPor(campo: CampoOrden) {
+  sentidoOrden.value = campoOrden.value === campo && sentidoOrden.value === 'asc' ? 'desc' : 'asc'
+  campoOrden.value = campo
+}
+const indicadorOrden = (campo: CampoOrden) => campoOrden.value === campo ? (sentidoOrden.value === 'asc' ? '↑' : '↓') : '↕'
+const ariaOrden = (campo: CampoOrden) => campoOrden.value !== campo ? 'none' : sentidoOrden.value === 'asc' ? 'ascending' : 'descending'
+const etiquetaOrden = (campo: CampoOrden, nombre: string) => `Ordenar por ${nombre} ${campoOrden.value === campo && sentidoOrden.value === 'asc' ? 'descendente' : 'ascendente'}`
 const mensajeConfirmacion = ref('')
 let resolverConfirmacion: ((confirmado: boolean) => void) | null = null
-
-function resolverCambioEstado(confirmado: boolean) {
-  const resolver = resolverConfirmacion
-  resolverConfirmacion = null
-  mensajeConfirmacion.value = ''
-  resolver?.(confirmado)
+const accionesBloqueadas = computed(() => cargando.value || guardando.value || guardandoEstado.value || !!mensajeConfirmacion.value)
+const cabeceras = computed(() => ordenesAPI.value.map(o => presentarOrden(o, estados.value)))
+const detalles = computed(() => ordenesAPI.value.flatMap(presentarDetalles))
+const nombreProveedor = (id: number) => {
+  const proveedor = proveedores.value.find(p => p.proveedor_id === id)
+  return proveedor ? `${proveedor.nombre} ${proveedor.apellido}` : `Proveedor #${id}`
 }
-
-onBeforeUnmount(() => resolverCambioEstado(false))
-
-const accionesBloqueadas = computed(() =>
-  cargando.value || guardando.value || guardandoEstado.value || aprobandoId.value !== null || rechazandoId.value !== null || mensajeConfirmacion.value !== ''
-)
+const nombreProducto = (id: number) => productos.value.find(p => p.id === id)?.nombre ?? `Producto #${id}`
 const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
-const filtroBusqueda = ref('')
-const filtroEstado = ref<OrdenCompraCabecera['estado'] | ''>('')
+const fechaVisible = (valor: string) => new Date(valor).toLocaleDateString('es-AR')
+const ordenesFiltradas = computed(() => cabeceras.value.filter(o =>
+  (!filtroEstado.value || o.estado === filtroEstado.value) &&
+  normalizarBusqueda(`${o.ordencompra_id} ${nombreProveedor(o.proveedor_id)} ${fechaVisible(o.fecha)}`).includes(normalizarBusqueda(filtroBusqueda.value))
+).sort((a, b) => {
+  let comparacion = 0
+  if (campoOrden.value === 'numero') comparacion = a.ordencompra_id - b.ordencompra_id
+  else if (campoOrden.value === 'proveedor') {
+    comparacion = nombreProveedor(a.proveedor_id).localeCompare(nombreProveedor(b.proveedor_id), 'es-AR', { sensitivity: 'base', numeric: true })
+  } else {
+    const fechaA = Date.parse(a.fecha)
+    const fechaB = Date.parse(b.fecha)
+    // Las fechas inválidas quedan al final, en ambos sentidos.
+    if (Number.isNaN(fechaA) || Number.isNaN(fechaB)) {
+      return Number(Number.isNaN(fechaA)) - Number(Number.isNaN(fechaB)) || a.ordencompra_id - b.ordencompra_id
+    }
+    comparacion = fechaA - fechaB
+  }
+  return (comparacion || a.ordencompra_id - b.ordencompra_id) * (sentidoOrden.value === 'asc' ? 1 : -1)
+}))
 
-const ordenesFiltradas = computed(() => {
-  const busqueda = normalizarBusqueda(filtroBusqueda.value)
-  return ordenes.value.filter(orden =>
-    (filtroEstado.value === '' || orden.estado_nombre === filtroEstado.value) && (
-    normalizarBusqueda(orden.orden_id.toString()).includes(busqueda) ||
-    normalizarBusqueda(orden.solicitante).includes(busqueda) ||
-    normalizarBusqueda(orden.fecha).includes(busqueda))
-  )
-})
-
-async function verOrdenes() {
+async function cargar() {
   if (cargando.value) return
   cargando.value = true
   errorConsulta.value = ''
   try {
-    const [cabeceras, detalles] = await Promise.all([
-      getOrdenCompraCabeceras(),
-      getOrdenCompraDetalles()
+    const [ordenes, catalogoProveedores, catalogoProductos, catalogoEstados] = await Promise.all([
+      obtenerOrdenesCompra(), obtenerProveedores(), obtenerProductosProveedor(), obtenerEstadosCompra()
     ])
-    ordenes.value = cabeceras.map(cabecera => ({
-      orden_id: cabecera.ordencompra_id,
-      solicitante: cabecera.solicitante,
-      fecha: cabecera.fecha,
-      estado_nombre: cabecera.estado,
-      total: cabecera.total,
-      detalles: detalles.filter(item => item.ordencompra_id === cabecera.ordencompra_id).map(item => ({
-        detalle_id: item.ordencompradetalle_id,
-        producto_nombre: PRODUCTOS_MOCK.find(producto => producto.producto_id === item.producto_id)?.nombre ?? `Producto #${item.producto_id}`,
-        cantidad: item.cantidad
-      }))
-    }))
-    consultado.value = true
+    ordenesAPI.value = ordenes
+    proveedores.value = catalogoProveedores
+    productos.value = catalogoProductos
+    estados.value = catalogoEstados
+    catalogosListos.value = true
   } catch (error) {
-    errorConsulta.value = error instanceof Error ? error.message : 'No se pudieron consultar las órdenes.'
-  } finally {
-    cargando.value = false
-  }
+    errorConsulta.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error))
+  } finally { cargando.value = false }
 }
 
-function abrirModalCrear() {
-  mensaje.value = ''
-  if (cabeceraCreadaId.value === null) errorGuardado.value = ''
-  mostrarNuevaOrden.value = true
+async function cargarFacturas() {
+  if (cargandoFacturas.value) return
+  cargandoFacturas.value = true
+  errorFacturas.value = ''
+  facturas.value = []
+  try { facturas.value = await obtenerFacturasCompra() }
+  catch (error) { errorFacturas.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error)) }
+  finally { cargandoFacturas.value = false }
 }
 
-function cerrarModal() {
-  if (guardando.value) return
-  mostrarNuevaOrden.value = false
+function abrirConsulta(id: number | null = null) {
+  if (accionesBloqueadas.value) return
+  ordenConsultaId.value = id
+  mostrarConsultaOrdenes.value = true
+  void cargarFacturas()
 }
 
 async function guardarOrden(datos: NuevaOrdenCompra) {
@@ -224,337 +115,112 @@ async function guardarOrden(datos: NuevaOrdenCompra) {
   guardando.value = true
   errorGuardado.value = ''
   try {
-    if (cabeceraCreadaId.value === null) {
-      const cabecera = await postOrdenCompraCabecera(datos.cabecera)
-      cabeceraCreadaId.value = cabecera.ordencompra_id
-    }
-    await postOrdenCompraDetalle(cabeceraCreadaId.value, datos.detalles)
-    mensaje.value = `Orden #${cabeceraCreadaId.value} creada con ${datos.detalles.length} ítem(s).`
-    cabeceraCreadaId.value = null
+    const orden = await crearOrdenCompra(datos)
+    ordenesAPI.value.unshift(orden)
     mostrarNuevaOrden.value = false
-    await verOrdenes()
-  } catch (error) {
-    const detalle = error instanceof Error ? error.message : 'No se pudo guardar la orden.'
-    errorGuardado.value = cabeceraCreadaId.value === null
-      ? detalle
-      : `La cabecera #${cabeceraCreadaId.value} se creó, pero falta guardar el detalle. ${detalle}`
-  } finally {
-    guardando.value = false
-  }
+    mensaje.value = `Orden #${orden.ordencompra_id} creada correctamente.`
+  } catch (error) { errorGuardado.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error)) }
+  finally { guardando.value = false }
 }
 
-function alternarCambiosEstado() {
-  if (accionesBloqueadas.value) return
-  cambiosEstadoHabilitados.value = !cambiosEstadoHabilitados.value
+function resolverCambioEstado(confirmado: boolean) {
+  const resolver = resolverConfirmacion
+  resolverConfirmacion = null
+  mensajeConfirmacion.value = ''
+  resolver?.(confirmado)
 }
+onBeforeUnmount(() => resolverCambioEstado(false))
 
-async function confirmarCambioEstado(ordenId: number, estado: OrdenCompraCabecera['estado']): Promise<boolean> {
-  if (resolverConfirmacion) return false
-  let texto: string
-  switch (estado) {
-    case 'recibida':
-      texto = `¿Estás seguro de recibir la orden #${ordenId}? Quedará en estado pendiente para aprobar o rechazar.`
-      break
-    case 'aprobada':
-      texto = `¿Estás seguro de aprobar la orden #${ordenId}? Este cambio es definitivo.`
-      break
-    case 'rechazada':
-      texto = `¿Estás seguro de rechazar la orden #${ordenId}? Este cambio es definitivo.`
-      break
-    default:
-      return false
-  }
-  return new Promise(resolve => {
-    resolverConfirmacion = resolve
-    mensajeConfirmacion.value = texto
-  })
-}
-
-async function aprobarOrden(orden: OrdenCompraListado) {
-  if (accionesBloqueadas.value || !cambiosEstadoHabilitados.value || orden.estado_nombre !== 'pendiente') return
-  if (!await confirmarCambioEstado(orden.orden_id, 'aprobada')) return
-  aprobandoId.value = orden.orden_id
-  errorAprobacion.value = ''
-  mensaje.value = ''
-  try {
-    const cabecera = await aprobarOrdenCompra(orden.orden_id)
-    orden.estado_nombre = cabecera.estado
-    mensaje.value = `Orden #${orden.orden_id} aprobada correctamente.`
-  } catch (error) {
-    errorAprobacion.value = error instanceof Error ? error.message : 'No se pudo aprobar la orden.'
-  } finally {
-    aprobandoId.value = null
-  }
-}
-
-async function rechazarOrden(orden: OrdenCompraListado) {
-  if (accionesBloqueadas.value || !cambiosEstadoHabilitados.value || orden.estado_nombre !== 'pendiente') return
-  if (!await confirmarCambioEstado(orden.orden_id, 'rechazada')) return
-  rechazandoId.value = orden.orden_id
-  errorAprobacion.value = ''
-  mensaje.value = ''
-  try {
-    const cabecera = await rechazarOrdenCompra(orden.orden_id)
-    orden.estado_nombre = cabecera.estado
-    mensaje.value = `Orden #${orden.orden_id} rechazada correctamente.`
-  } catch (error) {
-    errorAprobacion.value = error instanceof Error ? error.message : 'No se pudo rechazar la orden.'
-  } finally {
-    rechazandoId.value = null
-  }
-}
-
-async function recibirOrdenCompra(ordenId: number): Promise<OrdenCompraCabecera> {
-  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordenId)
-  if (!cabecera) throw new Error('No existe la orden de compra.')
-  if (cabecera.estado !== null) throw new Error('La orden ya fue recibida.')
-  cabecera.estado = 'pendiente'
-  return { ...cabecera }
-}
-
-async function cambiarEstadoOrden(ordenId: number, estado: OrdenCompraCabecera['estado']) {
-  if (!cambiosEstadoHabilitados.value || accionesBloqueadas.value) return
-  if (!await confirmarCambioEstado(ordenId, estado)) return
+async function cambiarEstado(id: number, nuevo: string) {
+  const orden = cabeceras.value.find(o => o.ordencompra_id === id)
+  if (!orden || !cambiosHabilitados.value || accionesBloqueadas.value || !transicionPermitida(orden.estado, nuevo)) return
+  const estado = estados.value.find(e => e.nombre.toLowerCase() === nuevo)
+  if (!estado) { errorEstado.value = 'El estado solicitado no está disponible.'; return }
+  mensajeConfirmacion.value = nuevo === 'recibida'
+    ? `¿Confirmás la recepción de la orden #${id}? La recepción se simulará sin modificar el stock real.`
+    : `¿Confirmás cambiar la orden #${id} a ${estado.nombre}?`
+  if (!await new Promise<boolean>(resolve => { resolverConfirmacion = resolve })) return
   guardandoEstado.value = true
-  errorAprobacion.value = ''
+  errorEstado.value = ''
   mensaje.value = ''
   try {
-    let cabecera: OrdenCompraCabecera
-    switch (estado) {
-      case 'aprobada': cabecera = await aprobarOrdenCompra(ordenId); break
-      case 'rechazada': cabecera = await rechazarOrdenCompra(ordenId); break
-      case 'recibida': cabecera = await recibirOrdenCompra(ordenId); break
-      default: throw new Error('No se puede volver al estado pendiente.')
-    }
-    const orden = ordenes.value.find(item => item.orden_id === ordenId)
-    if (orden) orden.estado_nombre = cabecera.estado
-    mensaje.value = `Orden #${ordenId}: estado actualizado a ${cabecera.estado?.toLowerCase()}.`
-  } catch (error) {
-    errorAprobacion.value = error instanceof Error ? error.message : 'No se pudo actualizar el estado.'
-  } finally {
-    guardandoEstado.value = false
-  }
+    const actualizada = await actualizarEstadoCompra(id, estado.estadoordencompra_id)
+    const indice = ordenesAPI.value.findIndex(o => o.ordencompra_id === id)
+    if (indice !== -1) ordenesAPI.value[indice] = actualizada
+    mensaje.value = `Orden #${id}: ${estado.nombre}.`
+  } catch (error) { errorEstado.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error)) }
+  finally { guardandoEstado.value = false }
 }
-
-onMounted(verOrdenes)
+onMounted(cargar)
 </script>
 
 <template>
   <div class="container-fluid py-2">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
-      <div>
-        <h3 class="fw-bold mb-0 text-dark">Órdenes de Compra</h3>
-        <p class="text-muted small mb-0">Registro y consulta de pedidos de los solicitantes internos</p>
-      </div>
+      <div><h3 class="fw-bold mb-0">Órdenes de Compra</h3><p class="text-muted small mb-0">Registro y consulta de compras a proveedores</p></div>
       <div class="d-flex flex-wrap gap-2">
-        <button
-          type="button"
-          class="btn btn-outline-coralon px-3 fw-semibold"
-          :disabled="accionesBloqueadas"
-          :aria-pressed="cambiosEstadoHabilitados"
-          @click="alternarCambiosEstado"
-        >{{ cambiosEstadoHabilitados ? 'Bloquear cambios de estado' : 'Habilitar cambios de estado' }}</button>
-        <button
-          type="button"
-          class="btn btn-outline-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
-          :disabled="accionesBloqueadas"
-          @click="abrirConsultaOrdenes()"
-        >
-          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0" />
-            <path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8m8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7" />
-          </svg>
-          <span>{{ cargando ? 'Cargando…' : 'Ver Ordenes' }}</span>
-        </button>
-        <button
-          type="button"
-          class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
-          :disabled="accionesBloqueadas"
-          @click="abrirModalCrear"
-        >
-          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4" />
-          </svg>
-          <span>Nueva Orden</span>
-        </button>
+        <button class="btn btn-outline-coralon" :disabled="accionesBloqueadas" :aria-pressed="cambiosHabilitados" @click="cambiosHabilitados = !cambiosHabilitados">{{ cambiosHabilitados ? 'Bloquear cambios de estado' : 'Habilitar cambios de estado' }}</button>
+        <button class="btn btn-outline-coralon" :disabled="accionesBloqueadas" @click="cargar">Actualizar</button>
+        <button class="btn btn-outline-coralon" :disabled="accionesBloqueadas || !catalogosListos" @click="abrirConsulta()">Ver órdenes</button>
+        <button class="btn btn-coralon" :disabled="accionesBloqueadas || !catalogosListos" @click="errorGuardado = ''; mostrarNuevaOrden = true">Nueva orden</button>
       </div>
     </div>
-
     <div v-if="mensaje" class="alert alert-success" role="status">{{ mensaje }}</div>
-    <div v-if="errorConsulta" class="alert alert-danger" role="alert">{{ errorConsulta }}</div>
-    <div v-if="errorAprobacion" class="alert alert-danger" role="alert">{{ errorAprobacion }}</div>
-    
-    <div class="card shadow-sm border-0 mb-4">
-      <div class="card-body p-3">
-        <div class="row g-3 align-items-end">
-          <div class="col-md-6">
-            <label for="buscar-orden-listado" class="form-label small fw-semibold">Buscar orden</label>
-            <div class="input-group">
-              <span class="input-group-text bg-white border-end-0 text-muted pe-1">
-                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
-                </svg>
-              </span>
-              <input
-                id="buscar-orden-listado"
-                v-model="filtroBusqueda"
-                type="text"
-                class="form-control border-start-0 custom-search ps-2"
-                placeholder="Buscar por Número, Solicitante o Fecha..."
-                aria-label="Buscar órdenes por número, solicitante o fecha"
-              />
-            </div>
-          </div>
-          <div class="col-md-6">
-            <label for="estado-orden-listado" class="form-label small fw-semibold">Filtrar por estado</label>
-            <select id="estado-orden-listado" v-model="filtroEstado" class="form-select">
-              <option value="">Todos los estados</option>
-              <option :value="null">Sin recibir</option>
-              <option value="recibida">recibida</option>
-              <option value="pendiente">pendiente</option>
-              <option value="aprobada">aprobada</option>
-              <option value="rechazada">rechazada</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card shadow-sm border-0 overflow-hidden" :aria-busy="cargando">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0" aria-label="Órdenes de compra registradas">
-          <thead class="table-dark-custom">
-            <tr>
-              <th scope="col" class="ps-3 py-3">N° Orden</th>
-              <th scope="col" class="py-3">Solicitante</th>
-              <th scope="col" class="py-3">Productos y cantidades</th>
-              <th scope="col" class="py-3">Fecha</th>
-              <th scope="col" class="py-3">Estado</th>
-              <th scope="col" class="py-3 text-end">Total</th>
-              <th scope="col" class="pe-3 py-3 text-end">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="orden in ordenesFiltradas"
-              :key="orden.orden_id"
-              :class="{ 'orden-seleccionable': !accionesBloqueadas }"
-              @click="abrirConsultaOrdenes(orden.orden_id)"
-            >
-              <th scope="row" class="ps-3 py-3 font-monospace">
-                <button
-                  type="button"
-                  class="btn btn-link p-0 fw-bold text-coralon"
-                  :disabled="accionesBloqueadas"
-                  :aria-label="`Ver detalle de la orden ${orden.orden_id}`"
-                  @click.stop="abrirConsultaOrdenes(orden.orden_id)"
-                >#{{ orden.orden_id }}</button>
-              </th>
-              <td class="fw-semibold">{{ orden.solicitante }}</td>
-              <td>
-                <ul v-if="orden.detalles.length" class="list-unstyled mb-0 d-flex flex-column gap-2">
-                  <li v-for="item in orden.detalles" :key="item.detalle_id" class="d-flex align-items-baseline gap-2">
-                    <span class="badge bg-light text-dark border font-monospace text-nowrap" :aria-label="`Cantidad: ${item.cantidad.toLocaleString('es-AR')}`">
-                      {{ item.cantidad.toLocaleString('es-AR') }} ×
-                    </span>
-                    <span>{{ item.producto_nombre }}</span>
-                  </li>
-                </ul>
-                <span v-else class="text-muted small">Sin productos registrados.</span>
-              </td>
-              <td class="text-muted text-nowrap">{{ orden.fecha }}</td>
-              <td>
-                <span class="badge" :class="orden.estado_nombre === 'rechazada' ? 'bg-danger' : orden.estado_nombre === 'aprobada' ? 'bg-success' : orden.estado_nombre === 'recibida' ? 'bg-primary' : orden.estado_nombre === null ? 'bg-secondary' : 'bg-warning text-dark'">
-                  {{ orden.estado_nombre ?? 'Sin recibir' }}
-                </span>
-              </td>
-              <td class="text-end fw-bold text-nowrap">{{ moneda(orden.total) }}</td>
-              <td class="pe-3 text-end" @click.stop>
-                <div class="d-flex flex-wrap justify-content-end gap-2">
-                  <button
-                    v-if="orden.estado_nombre === 'pendiente'"
-                    type="button"
-                    class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 text-nowrap"
-                    :disabled="accionesBloqueadas || !cambiosEstadoHabilitados || orden.detalles.length === 0"
-                    :aria-label="`Aprobar orden ${orden.orden_id}`"
-                    :title="orden.detalles.length === 0 ? 'La orden requiere productos para aprobarse' : 'Aprobar orden'"
-                    @click="aprobarOrden(orden)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                      <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 0 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0" />
-                    </svg>
-                    <span>{{ aprobandoId === orden.orden_id ? 'Aprobando…' : 'Aprobar' }}</span>
-                  </button>
-                  <button
-                    v-if="orden.estado_nombre === 'pendiente'"
-                    type="button"
-                    class="btn btn-sm btn-outline-danger d-flex align-items-center gap-1 text-nowrap"
-                    :disabled="accionesBloqueadas || !cambiosEstadoHabilitados"
-                    :aria-label="`Rechazar orden ${orden.orden_id}`"
-                    @click="rechazarOrden(orden)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                      <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708" />
-                    </svg>
-                    <span>{{ rechazandoId === orden.orden_id ? 'Rechazando…' : 'Rechazar' }}</span>
-                  </button>
-                  <button
-                    v-else-if="orden.estado_nombre === null"
-                    type="button"
-                    class="btn btn-sm btn-outline-primary"
-                    :disabled="accionesBloqueadas || !cambiosEstadoHabilitados"
-                    @click="cambiarEstadoOrden(orden.orden_id, 'recibida')"
-                  >Recibir</button>
-                  <span v-else class="text-muted small align-self-center fst-italic">
-                    Estado definitivo
-                  </span>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="ordenesFiltradas.length === 0">
-              <td colspan="7" class="text-center py-5 text-muted">
-                {{ cargando ? 'Consultando órdenes…' : filtroBusqueda.trim() || filtroEstado !== '' ? 'No se encontraron órdenes que coincidan con los filtros.' : consultado ? 'No hay órdenes de compra registradas.' : 'Presioná Ver Ordenes para consultar las compras registradas.' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-    <p class="text-muted small mt-3">Modo de demostración: los cambios se reinician al salir de esta vista o recargar la página.</p>
-
-    <ModalVerOrdenesCompra
-      :mostrar="mostrarConsultaOrdenes"
-      :orden-inicial-id="ordenConsultaId"
-      :ordenes="cabecerasCompra"
-      :facturas="facturasConsultadas"
-      :detalles="detallesConsultados"
-      :cambios-habilitados="cambiosEstadoHabilitados"
-      :actualizando="guardandoEstado"
-      :error="errorAprobacion"
-      :mensaje="mensaje"
-      @alternar-cambios="alternarCambiosEstado"
-      @cambiar-estado="cambiarEstadoOrden"
-      @cerrar="mostrarConsultaOrdenes = false"
-    />
-    <ModalNuevaOrdenCompra
-      :mostrar="mostrarNuevaOrden"
-      :guardando="guardando"
-      :error="errorGuardado"
-      :cabecera-creada="cabeceraCreadaId !== null"
-      @cerrar="cerrarModal"
-      @guardar="guardarOrden"
-    />
-    <ModalConfirmacion
-      v-if="mensajeConfirmacion"
-      :mensaje="mensajeConfirmacion"
-      @resolver="resolverCambioEstado"
-    />
+    <div v-if="errorConsulta" class="alert alert-danger" role="alert">{{ errorConsulta }} <button class="btn btn-sm btn-outline-danger" :disabled="accionesBloqueadas" @click="cargar">Reintentar</button></div>
+    <div v-if="errorEstado" class="alert alert-danger" role="alert">{{ errorEstado }}</div>
+    <div class="card border-0 shadow-sm p-3 mb-4"><div class="row g-3">
+      <div class="col-md-6"><label for="buscar-orden" class="form-label">Buscar orden</label><input id="buscar-orden" v-model="filtroBusqueda" type="search" class="form-control" placeholder="Número, proveedor o fecha" /></div>
+      <div class="col-md-6"><label for="estado-orden" class="form-label">Estado</label><select id="estado-orden" v-model="filtroEstado" class="form-select"><option value="">Todos los estados</option><option v-for="estado in estados" :key="estado.estadoordencompra_id" :value="estado.nombre.toLowerCase()">{{ estado.nombre }}</option></select></div>
+    </div></div>
+    <div class="card border-0 shadow-sm overflow-hidden" :aria-busy="cargando"><div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-dark-custom"><tr>
+          <th scope="col" :aria-sort="ariaOrden('numero')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('numero', 'número de orden')" @click="ordenarPor('numero')">N° Orden <span aria-hidden="true">{{ indicadorOrden('numero') }}</span></button></th>
+          <th scope="col" :aria-sort="ariaOrden('proveedor')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('proveedor', 'proveedor')" @click="ordenarPor('proveedor')">Proveedor <span aria-hidden="true">{{ indicadorOrden('proveedor') }}</span></button></th>
+          <th>Productos y cantidades</th>
+          <th scope="col" :aria-sort="ariaOrden('fecha')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('fecha', 'fecha')" @click="ordenarPor('fecha')">Fecha <span aria-hidden="true">{{ indicadorOrden('fecha') }}</span></button></th>
+          <th>Estado</th><th class="text-end">Total</th><th>Acciones</th>
+        </tr></thead>
+        <tbody>
+          <tr v-for="orden in ordenesFiltradas" :key="orden.ordencompra_id">
+            <td><button class="btn btn-link" :disabled="accionesBloqueadas" @click="abrirConsulta(orden.ordencompra_id)">#{{ orden.ordencompra_id }}</button></td>
+            <td>{{ nombreProveedor(orden.proveedor_id) }}</td>
+            <td><div v-for="detalle in detalles.filter(d => d.ordencompra_id === orden.ordencompra_id)" :key="detalle.ordencompradetalle_id">{{ nombreProducto(detalle.producto_id) }} × {{ detalle.cantidad }}</div></td>
+            <td>{{ fechaVisible(orden.fecha) }}</td><td>{{ orden.estado }}</td><td class="text-end text-nowrap">{{ moneda(orden.total) }}</td>
+            <td><div class="d-flex gap-2">
+              <span v-if="!estadoCompraReconocido(orden.estado)" class="text-warning-emphasis small">El estado «{{ orden.estado }}» no tiene transiciones configuradas. Es necesario corregirlo en el backend.</span>
+              <button v-if="orden.estado === 'pendiente'" class="btn btn-sm btn-outline-success" :disabled="accionesBloqueadas || !cambiosHabilitados" @click="cambiarEstado(orden.ordencompra_id, 'aprobada')">Aprobar</button>
+              <button v-if="orden.estado === 'aprobada'" class="btn btn-sm btn-outline-primary" :disabled="accionesBloqueadas || !cambiosHabilitados" @click="cambiarEstado(orden.ordencompra_id, 'recibida')">Recibir</button>
+              <button v-if="['pendiente', 'aprobada'].includes(orden.estado)" class="btn btn-sm btn-outline-danger" :disabled="accionesBloqueadas || !cambiosHabilitados" @click="cambiarEstado(orden.ordencompra_id, 'rechazada')">Rechazar</button>
+            </div></td>
+          </tr>
+          <tr v-if="cargando"><td colspan="7" class="text-center p-4">Cargando órdenes…</td></tr>
+          <tr v-else-if="!errorConsulta && !ordenesFiltradas.length"><td colspan="7" class="text-center p-4 text-muted">{{ filtroBusqueda || filtroEstado ? 'No hay órdenes que coincidan con los filtros.' : 'No hay órdenes registradas.' }}</td></tr>
+        </tbody>
+      </table>
+    </div></div>
+    <ModalNuevaOrdenCompra :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
+    <ModalVerOrdenesCompra :mostrar="mostrarConsultaOrdenes" :orden-inicial-id="ordenConsultaId" :ordenes="cabeceras" :detalles="detalles" :proveedores="proveedores" :productos="productos" :estados="estados" :facturas="facturas" :cargando-facturas="cargandoFacturas" :error-facturas="errorFacturas" :cambios-habilitados="cambiosHabilitados" :actualizando="accionesBloqueadas" :error="errorEstado" :mensaje="mensaje" @cerrar="mostrarConsultaOrdenes = false" @alternar-cambios="cambiosHabilitados = !cambiosHabilitados" @cambiar-estado="cambiarEstado" @reintentar-facturas="cargarFacturas" />
+    <ModalConfirmacion v-if="mensajeConfirmacion" :mensaje="mensajeConfirmacion" @resolver="resolverCambioEstado" />
   </div>
 </template>
-
 <style scoped>
 .orden-seleccionable { cursor: pointer; }
 .text-coralon { color: #b33e14; }
+.ordenar-columna {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ordenar-columna:hover { color: #ffb38f; }
+.ordenar-columna:focus-visible { outline: 2px solid #ffb38f; outline-offset: 3px; }
 
 .table-dark-custom {
   background-color: #231f1d;

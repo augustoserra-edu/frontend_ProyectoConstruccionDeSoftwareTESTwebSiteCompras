@@ -46,3 +46,7 @@ export async function obtenerMovimientosPorProducto(productoId: number): Promise
     return MOVIMIENTOS_INVENTARIO_MOCK.filter(m => m.producto_id === productoId)
   }
 }
+// Catálogo real utilizado por compras y proveedores.
+import { obtenerTodasLasPaginas } from './paginacion'
+export interface ProductoProveedor { id: number; codigo: string; nombre: string; precio: string }
+export const obtenerProductosProveedor = () => obtenerTodasLasPaginas<ProductoProveedor>('/scm/productos/')

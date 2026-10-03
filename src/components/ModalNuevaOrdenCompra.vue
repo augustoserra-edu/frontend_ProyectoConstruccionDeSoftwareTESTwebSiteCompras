@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { PROVEEDORES_MOCK } from '../types/proveedor'
-import { PRODUCTOS_MOCK } from '../types/producto'
+import type { Proveedor } from '../types/proveedor'
+import type { ProductoProveedor } from '../services/productosService'
 import type { NuevaOrdenCompra, NuevoOrdenCompraDetalle } from '../types/compra'
 
 interface Props {
   mostrar: boolean
   guardando: boolean
   error: string
-  cabeceraCreada: boolean
+  proveedores: Proveedor[]
+  productos: ProductoProveedor[]
 }
 
 const props = defineProps<Props>()
@@ -18,7 +19,12 @@ const emit = defineEmits<{
 }>()
 
 const proveedorId = ref<number | ''>('')
-const solicitante = ref('')
+const proveedorSeleccionado = computed(() => props.proveedores.some(proveedor => proveedor.proveedor_id === proveedorId.value))
+
+const productosDisponibles = computed(() => {
+  const proveedor = props.proveedores.find(p => p.proveedor_id === proveedorId.value)
+  return props.productos.filter(p => proveedor?.productos.includes(p.id)).map(p => ({ producto_id: p.id, nombre: p.nombre, preciounitario: Number(p.precio) }))
+})
 const busquedaProveedor = ref('')
 function obtenerFechaActual() {
   const hoy = new Date()
@@ -41,26 +47,26 @@ const proveedoresFiltrados = computed(() => {
   const busqueda = normalizarBusqueda(busquedaProveedor.value)
   const cuitSinSeparadores = busqueda.replace(/[-\s]/g, '')
 
-  return PROVEEDORES_MOCK.filter(proveedor =>
+  return props.proveedores.filter(proveedor =>
     normalizarBusqueda(`${proveedor.nombre} ${proveedor.apellido}`).includes(busqueda) ||
     proveedor.proveedor_id.toString().includes(busqueda) ||
     (cuitSinSeparadores !== '' && proveedor.cuit.replace(/[-\s]/g, '').includes(cuitSinSeparadores))
   )
 })
 
-const proveedorFueraDelFiltro = computed(() => PROVEEDORES_MOCK.find(proveedor =>
+const proveedorFueraDelFiltro = computed(() => props.proveedores.find(proveedor =>
   proveedor.proveedor_id === proveedorId.value &&
   !proveedoresFiltrados.value.some(coincidencia => coincidencia.proveedor_id === proveedor.proveedor_id)
 ))
 
 const productosPorItem = computed(() => items.value.map(item => {
   const busqueda = normalizarBusqueda(item.busqueda)
-  const coincidencias = PRODUCTOS_MOCK.filter(producto =>
+  const coincidencias = productosDisponibles.value.filter(producto =>
     !items.value.some(otro => otro.clave !== item.clave && otro.producto_id === producto.producto_id) &&
     (normalizarBusqueda(producto.nombre).includes(busqueda) ||
     producto.producto_id.toString().includes(busqueda))
   )
-  const seleccionadoFueraDelFiltro = PRODUCTOS_MOCK.find(producto =>
+  const seleccionadoFueraDelFiltro = productosDisponibles.value.find(producto =>
     producto.producto_id === item.producto_id &&
     !coincidencias.some(coincidencia => coincidencia.producto_id === producto.producto_id)
   )
@@ -68,34 +74,54 @@ const productosPorItem = computed(() => items.value.map(item => {
 }))
 
 function agregarItem() {
-  if (items.value.length >= PRODUCTOS_MOCK.length) return
+  if (!proveedorSeleccionado.value || items.value.length >= productosDisponibles.value.length) return
   items.value.push({ clave: siguienteClave++, busqueda: '', producto_id: 0, cantidad: 1, preciounitario: 0 })
 }
 
 function actualizarPrecio(item: NuevoOrdenCompraDetalle) {
-  item.preciounitario = PRODUCTOS_MOCK.find(producto => producto.producto_id === item.producto_id)?.preciounitario ?? 0
+  item.preciounitario = productosDisponibles.value.find(producto => producto.producto_id === item.producto_id)?.preciounitario ?? 0
+}
+
+function bloquearCantidadNoEntera(evento: InputEvent) {
+  if (evento.data && /\D/.test(evento.data)) evento.preventDefault()
+}
+
+function validarPegadoCantidad(evento: ClipboardEvent) {
+  const texto = evento.clipboardData?.getData('text') ?? ''
+  if (!/^\d+$/.test(texto)) evento.preventDefault()
+}
+
+function actualizarCantidad(evento: Event, item: NuevoOrdenCompraDetalle) {
+  const campo = evento.target as HTMLInputElement
+  const texto = campo.value
+  const cantidad = Number(texto)
+  if (!/^\d*$/.test(texto) || !Number.isSafeInteger(cantidad)) {
+    campo.value = item.cantidad ? String(item.cantidad) : ''
+    return
+  }
+  item.cantidad = cantidad
 }
 
 function guardar() {
   if (props.guardando) return
-  if (!props.cabeceraCreada) items.value.forEach(actualizarPrecio)
-  if (!props.cabeceraCreada) fecha.value = obtenerFechaActual()
+  items.value.forEach(actualizarPrecio)
+  fecha.value = obtenerFechaActual()
   errorValidacion.value = ''
   const productosElegidos = items.value.filter(item => item.producto_id !== 0).map(item => item.producto_id)
   if (new Set(productosElegidos).size !== productosElegidos.length) {
     errorValidacion.value = 'Cada producto puede aparecer una sola vez. Modificá la cantidad en su fila para pedir más unidades.'
     return
   }
-  if (!solicitante.value.trim() || !proveedorId.value || !fecha.value || !items.value.length || items.value.some(item =>
-    !PRODUCTOS_MOCK.some(producto => producto.producto_id === item.producto_id)
+  if (!proveedorId.value || !fecha.value || !items.value.length || items.value.some(item =>
+    !productosDisponibles.value.some(producto => producto.producto_id === item.producto_id)
     || !Number.isSafeInteger(item.cantidad) || item.cantidad <= 0
     || !Number.isFinite(item.preciounitario) || item.preciounitario <= 0
   ) || !Number.isFinite(total.value) || total.value <= 0) {
-    errorValidacion.value = 'Completá solicitante interno, proveedor, fecha y al menos un producto con cantidad entera mayor a cero y precio válido.'
+    errorValidacion.value = 'Completá proveedor, fecha y al menos un producto con cantidad entera mayor a cero y precio válido.'
     return
   }
   emit('guardar', {
-    cabecera: { solicitante: solicitante.value.trim(), proveedor_id: proveedorId.value, fecha: fecha.value, total: total.value },
+    cabecera: { proveedor_id: proveedorId.value, fecha: fecha.value, total: total.value },
     detalles: items.value.map(({ producto_id, cantidad, preciounitario }) => ({ producto_id, cantidad, preciounitario }))
   })
 }
@@ -104,17 +130,22 @@ function cerrarModal() {
   if (!props.guardando) emit('cerrar')
 }
 
+watch(proveedorId, () => {
+  items.value = []
+  const seleccionado = proveedorSeleccionado.value
+  if (seleccionado && !items.value.length) agregarItem()
+})
+
 watch(
   () => props.mostrar,
   (mostrar) => {
-    if (!mostrar || props.cabeceraCreada) return
+    if (!mostrar) return
     proveedorId.value = ''
-    solicitante.value = ''
+
     busquedaProveedor.value = ''
     fecha.value = obtenerFechaActual()
     items.value = []
     errorValidacion.value = ''
-    agregarItem()
   },
   { immediate: true }
 )
@@ -132,20 +163,10 @@ watch(
           </div>
           <div class="modal-body p-4 bg-white">
             <div v-if="error || errorValidacion" class="alert alert-danger" role="alert">{{ error || errorValidacion }}</div>
-            <fieldset :disabled="guardando || cabeceraCreada">
+            <fieldset :disabled="guardando">
               <legend class="fs-6 fw-bold">Cabecera</legend>
               <div class="row g-3 mb-4">
-                <div class="col-12">
-                  <label for="orden-solicitante" class="form-label fw-semibold">Solicitante interno</label>
-                  <input
-                    id="orden-solicitante"
-                    v-model="solicitante"
-                    type="text"
-                    class="form-control"
-                    placeholder="Nombre de la persona o área de la empresa"
-                    required
-                  />
-                </div>
+
                 <div class="col-md-8">
                   <label for="buscar-proveedor" class="form-label small">Buscar proveedor</label>
                   <input
@@ -177,9 +198,13 @@ watch(
                   <small id="orden-fecha-ayuda" class="text-muted">Se asigna automáticamente el día de creación.</small>
                 </div>
               </div>
+              <p v-if="!proveedorSeleccionado" id="productos-bloqueados" class="alert alert-info" role="status">
+                Seleccioná un proveedor para agregar productos a la orden.
+              </p>
+              <p v-if="proveedorSeleccionado && !productosDisponibles.length" class="alert alert-info">Este proveedor no tiene productos disponibles en el catálogo.</p><fieldset :disabled="!proveedorSeleccionado" :aria-describedby="!proveedorSeleccionado ? 'productos-bloqueados' : undefined">
               <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
                 <h6 class="fw-bold mb-0">Detalle de productos</h6>
-                <button type="button" class="btn btn-sm btn-outline-coralon" :disabled="items.length >= PRODUCTOS_MOCK.length" @click="agregarItem">Agregar producto</button>
+                <button type="button" class="btn btn-sm btn-outline-coralon" :disabled="items.length >= productosDisponibles.length" @click="agregarItem">Agregar producto</button>
               </div>
               <div v-for="(item, index) in items" :key="item.clave" class="row g-2 align-items-end border rounded p-2 mb-3">
                 <div class="col-md-4">
@@ -210,7 +235,19 @@ watch(
                 </div>
                 <div class="col-md-2">
                   <label :for="`cantidad-${item.clave}`" class="form-label small">Cantidad</label>
-                  <input :id="`cantidad-${item.clave}`" v-model.number="item.cantidad" type="number" min="1" step="1" inputmode="numeric" required class="form-control" />
+                  <input
+                    :id="`cantidad-${item.clave}`"
+                    :value="item.cantidad || ''"
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*[1-9][0-9]*"
+                    title="Ingresá una cantidad entera mayor a cero."
+                    required
+                    class="form-control"
+                    @beforeinput="bloquearCantidadNoEntera"
+                    @paste="validarPegadoCantidad"
+                    @input="actualizarCantidad($event, item)"
+                  />
                 </div>
                 <div class="col-md-2">
                   <label :for="`precio-${item.clave}`" class="form-label small">Precio unitario</label>
@@ -224,13 +261,14 @@ watch(
                   <button type="button" class="btn btn-outline-danger w-100" :aria-label="`Quitar producto ${index + 1}`" :disabled="items.length === 1" @click="items.splice(index, 1)">×</button>
                 </div>
               </div>
+              </fieldset>
             </fieldset>
             <p class="text-end fs-5 fw-bold mb-0">Total: <span class="text-coralon">{{ moneda(total) }}</span></p>
           </div>
           <div class="modal-footer bg-light px-4 py-3">
             <button type="button" class="btn btn-secondary px-3" :disabled="guardando" @click="cerrarModal">Cerrar</button>
-            <button type="submit" class="btn btn-coralon fw-semibold" :disabled="guardando">
-              {{ guardando ? 'Guardando…' : cabeceraCreada ? 'Reintentar detalle' : 'Guardar Orden' }}
+            <button type="submit" class="btn btn-coralon fw-semibold" :disabled="guardando || !proveedorSeleccionado">
+              {{ guardando ? 'Guardando…' : 'Guardar Orden' }}
             </button>
           </div>
         </form>
