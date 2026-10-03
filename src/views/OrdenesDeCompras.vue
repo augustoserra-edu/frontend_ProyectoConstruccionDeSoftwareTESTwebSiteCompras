@@ -33,6 +33,16 @@ const ordenConsultaId = ref<number | null>(null)
 const cambiosHabilitados = ref(false)
 const filtroBusqueda = ref('')
 const filtroEstado = ref('')
+type CampoOrden = 'numero' | 'proveedor' | 'fecha'
+const campoOrden = ref<CampoOrden>('numero')
+const sentidoOrden = ref<'asc' | 'desc'>('desc')
+function ordenarPor(campo: CampoOrden) {
+  sentidoOrden.value = campoOrden.value === campo && sentidoOrden.value === 'asc' ? 'desc' : 'asc'
+  campoOrden.value = campo
+}
+const indicadorOrden = (campo: CampoOrden) => campoOrden.value === campo ? (sentidoOrden.value === 'asc' ? '↑' : '↓') : '↕'
+const ariaOrden = (campo: CampoOrden) => campoOrden.value !== campo ? 'none' : sentidoOrden.value === 'asc' ? 'ascending' : 'descending'
+const etiquetaOrden = (campo: CampoOrden, nombre: string) => `Ordenar por ${nombre} ${campoOrden.value === campo && sentidoOrden.value === 'asc' ? 'descendente' : 'ascendente'}`
 const mensajeConfirmacion = ref('')
 let resolverConfirmacion: ((confirmado: boolean) => void) | null = null
 const accionesBloqueadas = computed(() => cargando.value || guardando.value || guardandoEstado.value || !!mensajeConfirmacion.value)
@@ -48,7 +58,22 @@ const fechaVisible = (valor: string) => new Date(valor).toLocaleDateString('es-A
 const ordenesFiltradas = computed(() => cabeceras.value.filter(o =>
   (!filtroEstado.value || o.estado === filtroEstado.value) &&
   normalizarBusqueda(`${o.ordencompra_id} ${nombreProveedor(o.proveedor_id)} ${fechaVisible(o.fecha)}`).includes(normalizarBusqueda(filtroBusqueda.value))
-))
+).sort((a, b) => {
+  let comparacion = 0
+  if (campoOrden.value === 'numero') comparacion = a.ordencompra_id - b.ordencompra_id
+  else if (campoOrden.value === 'proveedor') {
+    comparacion = nombreProveedor(a.proveedor_id).localeCompare(nombreProveedor(b.proveedor_id), 'es-AR', { sensitivity: 'base', numeric: true })
+  } else {
+    const fechaA = Date.parse(a.fecha)
+    const fechaB = Date.parse(b.fecha)
+    // Las fechas inválidas quedan al final, en ambos sentidos.
+    if (Number.isNaN(fechaA) || Number.isNaN(fechaB)) {
+      return Number(Number.isNaN(fechaA)) - Number(Number.isNaN(fechaB)) || a.ordencompra_id - b.ordencompra_id
+    }
+    comparacion = fechaA - fechaB
+  }
+  return (comparacion || a.ordencompra_id - b.ordencompra_id) * (sentidoOrden.value === 'asc' ? 1 : -1)
+}))
 
 async function cargar() {
   if (cargando.value) return
@@ -149,7 +174,13 @@ onMounted(cargar)
     </div></div>
     <div class="card border-0 shadow-sm overflow-hidden" :aria-busy="cargando"><div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
-        <thead class="table-dark-custom"><tr><th>N° Orden</th><th>Proveedor</th><th>Productos y cantidades</th><th>Fecha</th><th>Estado</th><th class="text-end">Total</th><th>Acciones</th></tr></thead>
+        <thead class="table-dark-custom"><tr>
+          <th scope="col" :aria-sort="ariaOrden('numero')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('numero', 'número de orden')" @click="ordenarPor('numero')">N° Orden <span aria-hidden="true">{{ indicadorOrden('numero') }}</span></button></th>
+          <th scope="col" :aria-sort="ariaOrden('proveedor')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('proveedor', 'proveedor')" @click="ordenarPor('proveedor')">Proveedor <span aria-hidden="true">{{ indicadorOrden('proveedor') }}</span></button></th>
+          <th>Productos y cantidades</th>
+          <th scope="col" :aria-sort="ariaOrden('fecha')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('fecha', 'fecha')" @click="ordenarPor('fecha')">Fecha <span aria-hidden="true">{{ indicadorOrden('fecha') }}</span></button></th>
+          <th>Estado</th><th class="text-end">Total</th><th>Acciones</th>
+        </tr></thead>
         <tbody>
           <tr v-for="orden in ordenesFiltradas" :key="orden.ordencompra_id">
             <td><button class="btn btn-link" :disabled="accionesBloqueadas" @click="abrirConsulta(orden.ordencompra_id)">#{{ orden.ordencompra_id }}</button></td>
@@ -176,6 +207,20 @@ onMounted(cargar)
 <style scoped>
 .orden-seleccionable { cursor: pointer; }
 .text-coralon { color: #b33e14; }
+.ordenar-columna {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ordenar-columna:hover { color: #ffb38f; }
+.ordenar-columna:focus-visible { outline: 2px solid #ffb38f; outline-offset: 3px; }
 
 .table-dark-custom {
   background-color: #231f1d;

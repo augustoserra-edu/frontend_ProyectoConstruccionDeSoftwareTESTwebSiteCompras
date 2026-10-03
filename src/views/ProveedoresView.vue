@@ -18,6 +18,23 @@ const proveedorSeleccionado = ref<Proveedor | null>(null)
 const mostrarModal = ref(false)
 const proveedorParaEditar = ref<Proveedor | null>(null)
 const nombreProducto = (id: number) => productos.value.find(p => p.id === id)?.nombre ?? `Producto #${id}`
+type CampoOrden = 'proveedor_id' | 'nombre' | 'apellido' | 'productos' | 'email' | 'direccion'
+const campoOrden = ref<CampoOrden>('proveedor_id')
+const sentidoOrden = ref<'asc' | 'desc'>('desc')
+const compararTexto = (a: string, b: string) => a.localeCompare(b, 'es-AR', { sensitivity: 'base', numeric: true })
+function ordenarPor(campo: CampoOrden) {
+  sentidoOrden.value = campoOrden.value === campo && sentidoOrden.value === 'asc' ? 'desc' : 'asc'
+  campoOrden.value = campo
+}
+const indicadorOrden = (campo: CampoOrden) => campoOrden.value === campo ? (sentidoOrden.value === 'asc' ? '↑' : '↓') : '↕'
+const ariaOrden = (campo: CampoOrden) => campoOrden.value !== campo ? 'none' : sentidoOrden.value === 'asc' ? 'ascending' : 'descending'
+const etiquetaOrden = (campo: CampoOrden, nombre: string) => `Ordenar por ${nombre} ${campoOrden.value === campo && sentidoOrden.value === 'asc' ? 'descendente' : 'ascendente'}`
+function textoOrden(proveedor: Proveedor, campo: Exclude<CampoOrden, 'proveedor_id'>) {
+  // Comparar el catálogo por nombre, independientemente del orden de asociación.
+  return campo === 'productos'
+    ? proveedor.productos.map(nombreProducto).sort(compararTexto).join(', ')
+    : proveedor[campo] ?? ''
+}
 
 async function cargarProveedores() {
   cargando.value = true
@@ -38,7 +55,13 @@ const proveedoresFiltrados = computed(() => {
   return listaProveedores.value.filter(p =>
     [p.nombre, p.apellido, p.cuit, p.email, ...p.productos.map(nombreProducto)]
       .some(valor => valor.toLowerCase().includes(busqueda))
-  )
+  ).sort((a, b) => {
+    const campo = campoOrden.value
+    const comparacion = campo === 'proveedor_id'
+      ? a.proveedor_id - b.proveedor_id
+      : compararTexto(textoOrden(a, campo), textoOrden(b, campo))
+    return (comparacion || a.proveedor_id - b.proveedor_id) * (sentidoOrden.value === 'asc' ? 1 : -1)
+  })
 })
 
 function seleccionarFila(proveedor: Proveedor) {
@@ -165,14 +188,14 @@ onMounted(cargarProveedores)
         <table class="table table-hover align-middle mb-0">
           <thead class="table-dark-custom">
             <tr>
-              <th scope="col" class="ps-3 py-3">ID</th>
-              <th scope="col" class="py-3">Nombre / Razón Social</th>
-              <th scope="col" class="py-3">Apellido / Denominación</th>
+              <th scope="col" class="ps-3 py-3" :aria-sort="ariaOrden('proveedor_id')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('proveedor_id', 'ID')" @click="ordenarPor('proveedor_id')">ID <span aria-hidden="true">{{ indicadorOrden('proveedor_id') }}</span></button></th>
+              <th scope="col" class="py-3" :aria-sort="ariaOrden('nombre')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('nombre', 'nombre')" @click="ordenarPor('nombre')">Nombre / Razón Social <span aria-hidden="true">{{ indicadorOrden('nombre') }}</span></button></th>
+              <th scope="col" class="py-3" :aria-sort="ariaOrden('apellido')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('apellido', 'apellido')" @click="ordenarPor('apellido')">Apellido / Denominación <span aria-hidden="true">{{ indicadorOrden('apellido') }}</span></button></th>
               <th scope="col" class="py-3">CUIT</th>
-              <th scope="col" class="py-3">Productos Suministrados</th>
+              <th scope="col" class="py-3" :aria-sort="ariaOrden('productos')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('productos', 'productos suministrados')" @click="ordenarPor('productos')">Productos Suministrados <span aria-hidden="true">{{ indicadorOrden('productos') }}</span></button></th>
               <th scope="col" class="py-3">Teléfono</th>
-              <th scope="col" class="py-3">Email</th>
-              <th scope="col" class="py-3 pe-3">Dirección</th>
+              <th scope="col" class="py-3" :aria-sort="ariaOrden('email')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('email', 'email')" @click="ordenarPor('email')">Email <span aria-hidden="true">{{ indicadorOrden('email') }}</span></button></th>
+              <th scope="col" class="py-3 pe-3" :aria-sort="ariaOrden('direccion')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('direccion', 'dirección')" @click="ordenarPor('direccion')">Dirección <span aria-hidden="true">{{ indicadorOrden('direccion') }}</span></button></th>
             </tr>
           </thead>
           <tbody>
@@ -222,6 +245,20 @@ onMounted(cargarProveedores)
 </template>
 
 <style scoped>
+.ordenar-columna {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.ordenar-columna:hover { color: #ffb38f; }
+.ordenar-columna:focus-visible { outline: 2px solid #ffb38f; outline-offset: 3px; }
+
 .btn-coralon {
   background-color: #b33e14;
   border-color: #b33e14;
