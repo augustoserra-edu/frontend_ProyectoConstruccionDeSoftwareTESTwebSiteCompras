@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import Navbar from './components/Navbar.vue'
 import SideBar, { type AccionSidebar } from './components/SideBar.vue'
+import LoginView from './views/LoginView.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
 import OrdenesDeCompras from './views/OrdenesDeCompras.vue'
 import ProductosView from './views/ProductosView.vue'
@@ -12,6 +13,12 @@ import DevolucionesView from './views/DevolucionesView.vue'
 import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
 import FinanzasCierreView from './views/FinanzasCierreView.vue'
 import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
+
+const estaAutenticado = ref(!!localStorage.getItem('access_token'))
+
+function alIniciarSesion() {
+  estaAutenticado.value = true
+}
 
 const moduloActivo = ref('administrativos')
 
@@ -104,7 +111,9 @@ const accionesSidebar = computed<{
 </script>
 
 <template>
-  <div class="d-flex flex-column min-vh-100 bg-light">
+  <LoginView v-if="!estaAutenticado" @sesion-iniciada="alIniciarSesion" />
+
+  <div v-else class="d-flex flex-column min-vh-100 bg-light">
     <Navbar
       :modulo-activo="moduloActivo"
       @cambiar-modulo="cambiarModulo"

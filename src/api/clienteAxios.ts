@@ -1,14 +1,18 @@
-/*import axios from 'axios'
+import axios from 'axios'
 
-// Instancia base de Axios
-// Al usar baseURL: '/api', las peticiones se dirigen de forma relativa al mismo servidor
 const clienteAxios = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json'
   },
-  timeout: 10000 // Tiempo límite de espera de 10 segundos
+  timeout: 10000
 })
 
-export default clienteAxios */
+clienteAxios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+export default clienteAxios

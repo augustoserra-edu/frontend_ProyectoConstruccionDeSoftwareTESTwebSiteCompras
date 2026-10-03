@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import type { Producto, NuevoProducto } from '../types/producto'
+import { obtenerRubros } from '../services/rubrosService'
+import { RUBROS_MOCK, type Rubro } from '../types/rubro'
 
 interface Props {
   mostrar: boolean
@@ -11,30 +13,55 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'cerrar'): void
-  (e: 'guardar', producto: Producto | NuevoProducto): void
+  (e: 'guardar', producto: NuevoProducto & { producto_id?: number; stockactual?: number; activo?: boolean }): void
 }>()
 
-const formulario = ref<NuevoProducto & { producto_id?: number }>({
+const listaRubros = ref<Rubro[]>([...RUBROS_MOCK])
+
+const formulario = ref<{
+  producto_id?: number
+  nombre: string
+  descripcion: string
+  preciounitario: number
+  rubro_id: number
+  stockminreposicion: number
+  stockactual?: number
+  activo?: boolean
+}>({
   nombre: '',
   descripcion: '',
   preciounitario: 0,
   rubro_id: 101,
-  stockactual: 0,
   stockminreposicion: 0
+})
+
+onMounted(async () => {
+  const rubrosCargados = await obtenerRubros()
+  if (rubrosCargados && rubrosCargados.length > 0) {
+    listaRubros.value = rubrosCargados
+  }
 })
 
 watch(
   () => props.productoAEditar,
   (nuevoValor) => {
     if (nuevoValor) {
-      formulario.value = { ...nuevoValor }
+      formulario.value = {
+        producto_id: nuevoValor.producto_id,
+        nombre: nuevoValor.nombre,
+        descripcion: nuevoValor.descripcion,
+        preciounitario: nuevoValor.preciounitario,
+        rubro_id: nuevoValor.rubro_id,
+        stockminreposicion: nuevoValor.stockminreposicion,
+        stockactual: nuevoValor.stockactual,
+        activo: nuevoValor.activo
+      }
     } else {
       formulario.value = {
         nombre: '',
         descripcion: '',
         preciounitario: 0,
-        rubro_id: 101,
-        stockactual: 0,
+        rubro_id: listaRubros.value[0]?.rubro_id || 101,
         stockminreposicion: 0
       }
     }
@@ -94,7 +121,7 @@ function guardarProducto() {
                 </div>
 
                 <!-- Nombre -->
-                <div class="col-md-8">
+                <div class="col-md-7">
                   <label class="form-label fw-semibold text-dark">Nombre del Producto *</label>
                   <input
                     v-model="formulario.nombre"
@@ -105,17 +132,18 @@ function guardarProducto() {
                   />
                 </div>
 
-                <!-- Rubro ID -->
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold text-dark">ID Rubro *</label>
-                  <input
+                <!-- Rubro (Desplegable con nombres en vez de input numérico) -->
+                <div class="col-md-5">
+                  <label class="form-label fw-semibold text-dark">Rubro *</label>
+                  <select
                     v-model.number="formulario.rubro_id"
-                    type="number"
-                    min="1"
-                    class="form-control custom-input"
-                    placeholder="101"
+                    class="form-select custom-input"
                     required
-                  />
+                  >
+                    <option v-for="rubro in listaRubros" :key="rubro.rubro_id" :value="rubro.rubro_id">
+                      {{ rubro.nombre }}
+                    </option>
+                  </select>
                 </div>
 
                 <!-- Descripción -->
@@ -131,7 +159,7 @@ function guardarProducto() {
                 </div>
 
                 <!-- Precio Unitario -->
-                <div class="col-md-4">
+                <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Precio Unitario ($) *</label>
                   <input
                     v-model.number="formulario.preciounitario"
@@ -144,21 +172,8 @@ function guardarProducto() {
                   />
                 </div>
 
-                <!-- Stock Actual -->
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold text-dark">Stock Actual *</label>
-                  <input
-                    v-model.number="formulario.stockactual"
-                    type="number"
-                    min="0"
-                    class="form-control custom-input"
-                    placeholder="0"
-                    required
-                  />
-                </div>
-
-                <!-- Stock Mínimo Reposición -->
-                <div class="col-md-4">
+                <!-- Stock Mínimo Reposición (Stock Actual fue removido correctamente) -->
+                <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Stock Mín. Reposición *</label>
                   <input
                     v-model.number="formulario.stockminreposicion"
