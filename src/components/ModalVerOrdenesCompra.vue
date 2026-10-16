@@ -26,6 +26,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (e: 'enviar-a-finanzas', ordenId: number, datos: DatosFacturaCompra): void
+  (e: 'editar', ordenId: number): void
   (e: 'cerrar'): void
   (e: 'reintentar-facturas'): void
   (e: 'cambiar-estado', ordenId: number, estado: OrdenCompraCabecera['estado']): void
@@ -190,7 +191,7 @@ function mantenerFoco(event: KeyboardEvent) {
                   <div class="list-group list-group-flush">
                     <button v-for="orden in ordenesVisibles" :key="orden.ordencompra_id" type="button" class="list-group-item list-group-item-action p-3" :disabled="actualizando" :class="{ seleccionada: ordenId === orden.ordencompra_id }" :aria-pressed="ordenId === orden.ordencompra_id" @click="seleccionarOrden(orden.ordencompra_id)">
                       <span class="d-flex justify-content-between gap-2 mb-2">
-                        <strong>{{ orden.ordencompra_id < 0 ? 'Ejemplo' : 'Orden' }} #{{ Math.abs(orden.ordencompra_id) }}</strong>
+                        <strong>Orden #{{ orden.ordencompra_id }}</strong>
                         <span class="badge align-self-start" :class="claseEstadoCompra(orden.estado)">{{ etiquetaEstadoCompra(orden.estado) }}</span>
                       </span>
                       <span class="d-block fw-semibold">{{ proveedor(orden.proveedor_id)?.nombre }} {{ proveedor(orden.proveedor_id)?.apellido }}</span>
@@ -204,8 +205,9 @@ function mantenerFoco(event: KeyboardEvent) {
               </div>
               <div class="col-lg-7">
                 <section v-if="seleccionada" class="card border-0 shadow-sm overflow-hidden" aria-label="Orden seleccionada">
-                  <div class="card-header encabezado text-white py-3 fw-semibold">{{ seleccionada.ordencompra_id < 0 ? 'Ejemplo' : 'Orden' }} #{{ Math.abs(seleccionada.ordencompra_id) }} · Información de compra</div>
+                  <div class="card-header encabezado text-white py-3 fw-semibold">Orden #{{ seleccionada.ordencompra_id }} · Información de compra</div>
                   <div class="card-body">
+                    <button v-if="seleccionada.estado === 'pendiente'" type="button" class="btn btn-coralon mb-3" :disabled="actualizando" @click="emit('editar', seleccionada.ordencompra_id)">Editar orden</button>
                     <div class="border rounded p-3 mb-4 bg-light">
                       <span class="small text-muted d-block mb-2">Estado de la orden</span>
                       <div class="d-flex flex-wrap align-items-center gap-2">
@@ -287,6 +289,8 @@ function mantenerFoco(event: KeyboardEvent) {
 .modal-backdrop { opacity: 0.6; }
 .encabezado { background-color: #231f1d; border-bottom: 3px solid #b33e14; }
 .text-coralon { color: #b33e14; }
+.btn-coralon { background-color: #b33e14; border-color: #b33e14; color: #fff; }
+.btn-coralon:hover { background-color: #ff7a45; border-color: #ff7a45; color: #fff; }
 .seleccionada { background-color: #fff1eb; border-left: 4px solid #b33e14; }
 .form-control:focus { border-color: #b33e14; box-shadow: 0 0 0 0.15rem #b33e1420; }
 .list-group-item:focus-visible { outline: 2px solid #b33e14; outline-offset: -2px; }

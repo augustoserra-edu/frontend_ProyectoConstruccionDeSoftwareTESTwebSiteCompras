@@ -41,6 +41,19 @@ test('new orders are posted in one request with nested details and no mock field
   }
   assert.deepEqual(await compras.crearOrdenCompra({ cabecera: { proveedor_id: 12, fecha: '2026-10-01', total: 21 }, detalles: [{ producto_id: 5, cantidad: 2, preciounitario: 10.5 }] }), orden)
 })
+test('editing sends product changes without changing the order date or state and propagates rejection', async () => {
+  const datos = { cabecera: { proveedor_id: 12, fecha: '2026-10-01', total: 31.5 }, detalles: [{ producto_id: 5, cantidad: 3, preciounitario: 10.5 }] }
+  handler = config => {
+    assert.equal(config.method, 'patch')
+    assert.equal(config.url, '/compras/ordenes-compra/41/')
+    assert.deepEqual(JSON.parse(config.data), { proveedor: 12, detalles: [{ producto_id: 5, cantidad: 3, precio_unitario: '10.50' }] })
+    return response(config, { ...orden, total: '31.50' })
+  }
+  assert.equal((await compras.editarOrdenCompra(41, datos)).total, '31.50')
+  handler = config => { throw new axios.AxiosError('Solo se puede modificar una orden pendiente.', 'ERR_BAD_REQUEST', config, null, { status: 400 }) }
+  await assert.rejects(compras.editarOrdenCompra(41, datos), error => error.response.status === 400)
+})
+
 test('state update sends the server catalog ID and preserves failures', async () => {
   handler = config => {
     assert.equal(config.method, 'patch')
@@ -144,36 +157,6 @@ test('legacy supplier product IDs remain selectable with catalog prices', async 
   assert.equal(compras.precioCompraProveedor({ productos: [5], preciosCompra: { 5: 10.5 } }, catalogo[0]), 10.5)
   assert.equal(compras.precioCompraProveedor({ productos: [5], preciosCompra: { 5: 0 } }, catalogo[0]), 0)
   assert.ok(Number.isNaN(compras.precioCompraProveedor({ productos: [5], preciosCompra: { 5: null } }, catalogo[0])))
-})
-
-
-test('20 demo orders have valid relationships and totals and all six states', async () => {
-  const { crearComprasMock } = await import(moduleURL('../src/mocks/comprasMock.ts'))
-  const mock = crearComprasMock()
-  const datos = mock.cargar()
-  assert.equal(datos.ordenes.length, 20)
-  assert.ok(datos.ordenes.every(o => o.ordencompra_id < 0))
-  assert.ok(datos.proveedores.every(p => p.proveedor_id < 0))
-  assert.ok(datos.productos.every(p => p.id < 0))
-  assert.ok(mock.facturas().every(f => f.facturacabecera_id < 0 && f.ordencompra_id < 0))
-  assert.equal(new Set(datos.ordenes.map(o => o.ordencompra_id)).size, 20)
-  assert.equal(new Set(datos.ordenes.map(o => o.estado)).size, 6)
-  for (const orden of datos.ordenes) {
-    assert.ok(datos.proveedores.some(p => p.proveedor_id === orden.proveedor))
-    assert.equal(orden.total, orden.detalles.reduce((total, d) => total + d.cantidad * Number(d.precio_unitario), 0).toFixed(2))
-    for (const detalle of orden.detalles) assert.ok(datos.productos.some(p => p.id === detalle.producto_id))
-  }
-  handler = () => { throw new Error('Demo must not call API') }
-  const id = datos.ordenes.find(o => o.estado === 1).ordencompra_id
-  assert.equal(mock.cambiar(id, 2).estado, 2)
-  assert.equal(mock.cambiar(id, 4).estado, 4)
-  assert.throws(() => mock.cambiar(id, 6), /factura/)
-  assert.equal(mock.contabilizar(id, { numero: 'DEMO-TEST', fecha: '2026-10-09', impuestos: 20 }).estado, 6)
-  assert.equal(mock.facturas().filter(f => f.ordencompra_id === id).length, 1)
-  assert.throws(() => mock.contabilizar(id, { numero: 'DUP', fecha: '2026-10-09', impuestos: 0 }))
-  mock.crear({ cabecera: { proveedor_id: -1, fecha: '2026-10-09', total: 100 }, detalles: [{ producto_id: -1, cantidad: 2, preciounitario: 50 }] })
-  assert.equal(mock.cargar().ordenes.length, 21)
-  assert.equal(crearComprasMock().cargar().ordenes.length, 20)
 })
 
 

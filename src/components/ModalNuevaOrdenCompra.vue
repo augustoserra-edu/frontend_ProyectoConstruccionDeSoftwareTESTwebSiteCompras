@@ -2,12 +2,13 @@
 import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, ref, watch } from 'vue'
 import { CANTIDAD_MAXIMA, importeValido } from '../utils/validacionesCompras'
-import { precioCompraProveedor } from '../services/comprasService'
+import { type OrdenCompraAPI, precioCompraProveedor } from '../services/comprasService'
 import type { Proveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
 import type { NuevaOrdenCompra, NuevoOrdenCompraDetalle } from '../types/compra'
 
 interface Props {
+  ordenAEditar?: OrdenCompraAPI | null
   mostrar: boolean
   guardando: boolean
   error: string
@@ -108,8 +109,8 @@ function actualizarCantidad(evento: Event, item: NuevoOrdenCompraDetalle) {
 
 function guardar() {
   if (props.guardando) return
-  items.value.forEach(actualizarPrecio)
-  fecha.value = obtenerFechaActual()
+  if (!props.ordenAEditar) items.value.forEach(actualizarPrecio)
+  if (!props.ordenAEditar) fecha.value = obtenerFechaActual()
   errorValidacion.value = ''
   const productosElegidos = items.value.filter(item => item.producto_id !== 0).map(item => item.producto_id)
   if (new Set(productosElegidos).size !== productosElegidos.length) {
@@ -138,17 +139,18 @@ watch(proveedorId, () => {
   items.value = []
   const seleccionado = proveedorSeleccionado.value
   if (seleccionado && !items.value.length) agregarItem()
-})
+}, { flush: 'sync' })
 
 watch(
   () => props.mostrar,
   (mostrar) => {
     if (!mostrar) return
-    proveedorId.value = ''
+    proveedorId.value = props.ordenAEditar?.proveedor ?? ''
 
     busquedaProveedor.value = ''
     fecha.value = obtenerFechaActual()
-    items.value = []
+    items.value = props.ordenAEditar?.detalles.map(d => ({ clave: siguienteClave++, busqueda: '', producto_id: d.producto_id, cantidad: d.cantidad, preciounitario: Number(d.precio_unitario) })) ?? []
+    if (props.ordenAEditar) fecha.value = props.ordenAEditar.fecha.slice(0, 10)
     errorValidacion.value = ''
   },
   { immediate: true }
@@ -162,7 +164,7 @@ watch(
       <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
         <form class="modal-content shadow border-0 overflow-hidden" @submit.prevent="guardar">
           <div class="modal-header modal-header-custom text-white px-4 py-3">
-            <h5 id="titulo-nueva-orden" class="modal-title fw-bold">Nueva Orden de Compra</h5>
+            <h5 id="titulo-nueva-orden" class="modal-title fw-bold">{{ ordenAEditar ? `Editar orden #${ordenAEditar.ordencompra_id}` : 'Nueva Orden de Compra' }}</h5>
             <button type="button" class="btn-close btn-close-white" aria-label="Cerrar" :disabled="guardando" @click="cerrarModal"></button>
           </div>
           <div class="modal-body p-4 bg-white">
@@ -262,7 +264,7 @@ watch(
                   <span class="d-block py-2 fw-semibold">{{ moneda(subtotal(item)) }}</span>
                 </div>
                 <div class="col-md-1">
-                  <button type="button" class="btn btn-outline-danger w-100" :aria-label="`Quitar producto ${index + 1}`" :disabled="items.length === 1" @click="items.splice(index, 1)">×</button>
+                  <button type="button" class="btn btn-outline-danger w-100" :aria-label="`Quitar producto ${index + 1}`" @click="items.splice(index, 1)">×</button>
                 </div>
               </div>
               </fieldset>
@@ -271,8 +273,8 @@ watch(
           </div>
           <div class="modal-footer bg-light px-4 py-3">
             <button type="button" class="btn btn-secondary px-3" :disabled="guardando" @click="cerrarModal">Cerrar</button>
-            <button type="submit" class="btn btn-coralon fw-semibold" :disabled="guardando || !proveedorSeleccionado">
-              {{ guardando ? 'Guardando…' : 'Guardar Orden' }}
+            <button type="submit" class="btn btn-coralon fw-semibold" :disabled="guardando || !proveedorSeleccionado || !items.length">
+              {{ guardando ? 'Guardando…' : ordenAEditar ? 'Guardar cambios' : 'Guardar Orden' }}
             </button>
           </div>
         </form>

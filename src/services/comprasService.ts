@@ -50,6 +50,14 @@ export async function crearOrdenCompra(datos: NuevaOrdenCompra): Promise<OrdenCo
   return data
 }
 
+export async function editarOrdenCompra(id: number, datos: NuevaOrdenCompra): Promise<OrdenCompraAPI> {
+  const { data } = await api.patch<OrdenCompraAPI>(`/compras/ordenes-compra/${id}/`, {
+    proveedor: datos.cabecera.proveedor_id,
+    detalles: datos.detalles.map(d => ({ producto_id: d.producto_id, cantidad: d.cantidad, precio_unitario: d.preciounitario.toFixed(2) }))
+  })
+  return data
+}
+
 export async function actualizarEstadoCompra(id: number, estado: number): Promise<OrdenCompraAPI> {
   const { data } = await api.patch<OrdenCompraAPI>(`/compras/ordenes-compra/${id}/`, { estado })
   return data

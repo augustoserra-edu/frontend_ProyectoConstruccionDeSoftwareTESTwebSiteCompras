@@ -33,6 +33,8 @@ export function validarProveedor(datos: NuevoProveedor, productosDisponibles: nu
   if (datos.telefono.length > 50 || (datos.telefono && (!/^[+()\d .-]+$/.test(datos.telefono) || !/\d/.test(datos.telefono)))) return 'Ingresá un teléfono válido de hasta 50 caracteres, con números y separadores.'
   if (datos.direccion.length > 200) return 'La dirección admite hasta 200 caracteres.'
   if (!datos.productos.length) return 'Seleccioná al menos un producto.'
-  if (new Set(datos.productos).size !== datos.productos.length || datos.productos.some(id => !productosDisponibles.includes(id))) return 'Revisá los productos seleccionados: deben pertenecer al catálogo y no repetirse.'
+  if (new Set(datos.productos).size !== datos.productos.length) return 'Hay productos repetidos en la selección.'
+  const faltantes = datos.productos.filter(id => !productosDisponibles.includes(id))
+  if (faltantes.length) return `Los productos #${faltantes.join(', #')} no están disponibles en el catálogo. Revisá la selección.`
   return ''
 }

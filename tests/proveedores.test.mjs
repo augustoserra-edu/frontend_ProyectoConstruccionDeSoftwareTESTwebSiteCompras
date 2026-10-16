@@ -21,13 +21,13 @@ function moduleURL(path) {
   return url
 }
 const proveedores = await import(moduleURL('../src/services/proveedoresService.ts'))
-const productos = await import(moduleURL('../src/services/productosService.ts'))
+
 const response = (config, data) => ({ config, data, status: 200, statusText: 'OK', headers: {} })
 
 test('catalogs read every page without following remote next URLs', async () => {
-  for (const [load, url] of [[proveedores.obtenerProveedores, '/compras/proveedores/'], [productos.obtenerProductosProveedor, '/scm/productos/']]) {
+  for (const [load, url] of [[proveedores.obtenerProveedores, '/compras/proveedores/'], [proveedores.obtenerCatalogoProductosProveedor, '/scm/productos/']]) {
     const pages = []
-    const rows = url.includes('proveedores') ? [{ proveedor_id: 1, productos: [5] }, { proveedor_id: 2, productos: [5, 6] }] : [{ id: 1 }, { id: 2 }]
+    const rows = url.includes('proveedores') ? [{ proveedor_id: 1, productos: [5] }, { proveedor_id: 2, productos: [5, 6] }] : [{ id: 1, nombre: 'Cemento', codigo: 'CEM', precio: 100, rubro: 1 }, { id: 2, nombre: 'Arena', codigo: 'ARE', precio: 200, rubro: 1 }]
     handler = config => {
       assert.equal(config.url, url)
       pages.push(config.params.page)
@@ -48,21 +48,52 @@ test('legacy server records retain real associations and block incompatible writ
   assert.equal(proveedores.relacionMultipleDisponible.value, true)
 })
 
-test('create and edit send multiple product IDs and propagate validation errors', async () => {
+test('first supplier sends purchase prices even when the supplier list is empty', async () => {
+  handler = config => response(config, { results: [], next: null })
+  assert.deepEqual(await proveedores.obtenerProveedores(), [])
   const payload = { nombre: 'Proveedor', apellido: 'SA', cuit: '30111000111', email: '', telefono: '', direccion: '', productos: [2, 7] }
   handler = config => {
     assert.equal(config.method, 'post')
-    assert.deepEqual(JSON.parse(config.data), payload)
+    assert.deepEqual(JSON.parse(config.data), { ...payload, productos: [{ producto_id: 2, precio_compra: '12.50' }, { producto_id: 7, precio_compra: '0.00' }] })
     return response(config, { proveedor_id: 9, ...payload })
   }
-  assert.deepEqual((await proveedores.crearProveedor(payload)).productos, [2, 7])
+  assert.deepEqual((await proveedores.crearProveedor({ ...payload, preciosCompra: { 2: 12.5, 7: 0 } })).productos, [2, 7])
   handler = config => {
     assert.equal(config.method, 'patch')
     assert.equal(config.url, '/compras/proveedores/9/')
-    assert.deepEqual(JSON.parse(config.data), { productos: [7, 8] })
+    assert.deepEqual(JSON.parse(config.data), { productos: [{ producto_id: 7, precio_compra: '0.00' }, { producto_id: 8, precio_compra: '20.00' }] })
     return response(config, { proveedor_id: 9, ...payload, productos: [7, 8] })
   }
-  assert.deepEqual((await proveedores.actualizarProveedor(9, { productos: [7, 8] })).productos, [7, 8])
+  assert.deepEqual((await proveedores.actualizarProveedor(9, { productos: [7, 8], preciosCompra: { 7: 0, 8: 20 } })).productos, [7, 8])
   handler = config => { throw new axios.AxiosError('Invalid', 'ERR_BAD_REQUEST', config, null, { status: 400, data: { cuit: ['Ya existe un proveedor con ese CUIT.'] } }) }
-  await assert.rejects(proveedores.crearProveedor(payload), error => error.response.status === 400)
+  await assert.rejects(proveedores.crearProveedor({ ...payload, preciosCompra: { 2: 12.5, 7: 0 } }), error => error.response.status === 400)
+})
+
+
+test('supplier catalog preserves IDs and codes, normalizes API values and never substitutes mocks', async () => {
+  handler = config => response(config, [{ producto_id: 80, nombre: 'Producto real', codigo: 'REAL-80', precio: '12.50', rubro_nombre: 'Materiales' }])
+  assert.deepEqual(await proveedores.obtenerCatalogoProductosProveedor(), [{ id: 80, nombre: 'Producto real', codigo: 'REAL-80', precio: 12.5, rubro: 'Materiales' }])
+  handler = config => response(config, { results: [], next: null })
+  assert.deepEqual(await proveedores.obtenerCatalogoProductosProveedor(), [])
+  handler = () => { throw new Error('No disponible') }
+  await assert.rejects(proveedores.obtenerCatalogoProductosProveedor(), /No disponible/)
+})
+
+test('editing normalizes associated product IDs and preserves purchase prices in the API format', async () => {
+  const raw = { proveedor_id: 9, productos: [{ producto_id: '2', precio_compra: '12.50' }, { producto_id: 7, precio_compra: '0.00' }] }
+  handler = config => response(config, [raw])
+  const [supplier] = await proveedores.obtenerProveedores()
+  assert.deepEqual(supplier.productos, [2, 7])
+  assert.deepEqual(supplier.preciosCompra, { 2: 12.5, 7: 0 })
+  handler = config => {
+    assert.equal(config.method, 'patch')
+    assert.deepEqual(JSON.parse(config.data), { productos: [{ producto_id: 2, precio_compra: '12.50' }, { producto_id: 7, precio_compra: '0.00' }] })
+    return response(config, raw)
+  }
+  const saved = await proveedores.actualizarProveedor(9, { productos: supplier.productos, preciosCompra: supplier.preciosCompra })
+  assert.deepEqual(saved, supplier)
+  handler = () => { assert.fail('Invalid prices must not reach the API') }
+  await assert.rejects(proveedores.actualizarProveedor(9, { productos: [2], preciosCompra: { 2: null } }), /precio de compra/)
+  handler = config => response(config, { proveedor_id: 9, productos: ['2', 7, '2'] })
+  assert.deepEqual((await proveedores.obtenerProveedorPorId(9)).productos, [2, 7])
 })
