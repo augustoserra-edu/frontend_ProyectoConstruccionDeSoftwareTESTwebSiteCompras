@@ -9,6 +9,7 @@ import type { EstadoVenta, VentaHistorial } from '../types/devolucion'
 const RUTA_CLIENTES = '/ventas/clientes/'
 const RUTA_PRODUCTOS = '/scm/productos/'
 const RUTA_ORDENES = '/ventas/ordenes-venta/'
+const RUTA_FACTURAS = '/contabilidad/facturas/'
 
 // Las listas paginadas del backend llegan como { count, next, results: [...] }.
 // Esta función va pidiendo página por página hasta juntar todo.
@@ -84,10 +85,22 @@ interface OrdenVentaApi {
   items: { producto: number; producto_nombre: string; cantidad: number }[]
 }
 
-function estadoDesdeApi(nombre: string | null): EstadoVenta {
-  if (nombre === 'Anulada') return 'Anulada'
-  if (nombre === 'Devolución parcial') return 'Devolución parcial'
-  return 'Confirmada'
+// Estados que ve el usuario: En proceso, Confirmada, Devuelta y Anulada.
+// "Confirmada" significa que Finanzas ya facturó la orden; "En proceso", que todavía no.
+function estadoDesdeApi(nombre: string | null, facturada: boolean): EstadoVenta {
+  if (nombre && /anul/i.test(nombre)) return 'Anulada'
+  if (nombre && /devol/i.test(nombre)) return 'Devuelta'
+  return facturada ? 'Confirmada' : 'En proceso'
+}
+
+// Números de las órdenes de venta que ya tienen una factura de venta cargada por Finanzas
+async function obtenerIdsOrdenesFacturadas(): Promise<Set<number>> {
+  const facturas = await obtenerTodos<{ orden_venta_id: number | null; tipo: string }>(RUTA_FACTURAS)
+  return new Set(
+    facturas
+      .filter((f) => f.tipo === 'VENTA' && f.orden_venta_id !== null)
+      .map((f) => f.orden_venta_id as number),
+  )
 }
 
 // '2026-09-28T19:05:00-03:00' -> '2026-09-28 19:05'
@@ -99,9 +112,10 @@ function formatearFecha(iso: string): string {
 
 export async function obtenerOrdenesVenta(): Promise<VentaHistorial[]> {
   // La orden solo trae el id del cliente: buscamos los nombres en la lista de clientes
-  const [ordenes, clientes] = await Promise.all([
+  const [ordenes, clientes, facturadas] = await Promise.all([
     obtenerTodos<OrdenVentaApi>(RUTA_ORDENES),
     obtenerClientes(),
+    obtenerIdsOrdenesFacturadas(),
   ])
   const nombrePorId = new Map(clientes.map((c) => [c.cliente_id, c.nombre]))
 
@@ -111,7 +125,7 @@ export async function obtenerOrdenesVenta(): Promise<VentaHistorial[]> {
     fecha: formatearFecha(o.fecha),
     cliente: o.cliente ? (nombrePorId.get(o.cliente) ?? 'Cliente mostrador') : 'Cliente mostrador',
     total: Number(o.total),
-    estado: estadoDesdeApi(o.estado_nombre),
+    estado: estadoDesdeApi(o.estado_nombre, facturadas.has(o.id)),
     items: o.items.map((i) => ({
       productoId: i.producto,
       nombre: i.producto_nombre,

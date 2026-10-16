@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { DESTINOS_DEVOLUCION, type VentaHistorial } from '../types/devolucion'
+import { DESTINOS_DEVOLUCION, ESTADOS_VENTA, type VentaHistorial } from '../types/devolucion'
 import { obtenerOrdenesVenta, anularOrdenVenta, crearNotaCredito, textoError } from '../services/ventasService'
 import ModalAnulacion from '../components/ModalAnulacion.vue'
 
@@ -22,6 +22,34 @@ async function cargarVentas() {
 }
 
 onMounted(cargarVentas)
+
+// Color de cada estado
+function claseEstado(estado: VentaHistorial['estado']): string {
+  if (estado === 'Confirmada') return 'bg-success'
+  if (estado === 'Devuelta') return 'bg-warning text-dark'
+  if (estado === 'Anulada') return 'bg-danger'
+  return 'bg-secondary' // En proceso
+}
+
+// Qué se puede hacer con cada orden según su estado
+function puedeAnular(venta: VentaHistorial): boolean {
+  return venta.estado === 'En proceso' || venta.estado === 'Confirmada'
+}
+
+// Una devolución genera una nota de crédito, que solo existe si la orden fue facturada
+function puedeDevolver(venta: VentaHistorial): boolean {
+  return venta.estado === 'Confirmada'
+}
+
+function motivoAnular(venta: VentaHistorial): string {
+  return puedeAnular(venta) ? '' : `No se puede anular una orden ${venta.estado.toLowerCase()}.`
+}
+
+function motivoDevolver(venta: VentaHistorial): string {
+  if (puedeDevolver(venta)) return ''
+  if (venta.estado === 'En proceso') return 'Solo se puede devolver una orden facturada por Finanzas.'
+  return `No se puede devolver una orden ${venta.estado.toLowerCase()}.`
+}
 const busqueda = ref('')
 
 const ventasFiltradas = computed(() => {
@@ -145,6 +173,22 @@ async function generarNotaCredito() {
       <p class="text-muted small mb-0">Historial de ventas, anulaciones y notas de crédito</p>
     </div>
 
+    <!-- Qué significa cada estado -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body p-3">
+        <h6 class="fw-bold mb-3">Estados de la orden de venta</h6>
+        <div class="row g-2">
+          <div v-for="e in ESTADOS_VENTA" :key="e.estado" class="col-md-6 d-flex align-items-start gap-2">
+            <span class="badge" :class="claseEstado(e.estado)" style="min-width: 92px;">{{ e.estado }}</span>
+            <span class="small text-muted">{{ e.descripcion }}</span>
+          </div>
+        </div>
+        <p class="small text-muted mb-0 mt-3">
+          Ventas genera la orden y Finanzas la factura desde su sector. Cuando está facturada pasa a Confirmada y recién ahí se puede devolver.
+        </p>
+      </div>
+    </div>
+
     <!-- Historial de ventas -->
     <div class="card shadow-sm border-0 mb-4 overflow-hidden">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -175,22 +219,14 @@ async function generarNotaCredito() {
               <td>{{ venta.cliente }}</td>
               <td>${{ venta.total.toLocaleString('es-AR') }}</td>
               <td>
-                <span
-                  class="badge"
-                  :class="{
-                    'bg-success': venta.estado === 'Confirmada',
-                    'bg-warning text-dark': venta.estado === 'Devolución parcial',
-                    'bg-danger': venta.estado === 'Anulada',
-                  }"
-                >
-                  {{ venta.estado }}
-                </span>
+                <span class="badge" :class="claseEstado(venta.estado)">{{ venta.estado }}</span>
               </td>
               <td class="pe-3 text-end">
                 <button
                   class="btn btn-sm btn-outline-danger me-2"
                   type="button"
-                  :disabled="venta.estado === 'Anulada'"
+                  :disabled="!puedeAnular(venta)"
+                  :title="motivoAnular(venta)"
                   @click="abrirAnular(venta)"
                 >
                   Anular
@@ -198,7 +234,8 @@ async function generarNotaCredito() {
                 <button
                   class="btn btn-sm btn-outline-secondary"
                   type="button"
-                  :disabled="venta.estado === 'Anulada'"
+                  :disabled="!puedeDevolver(venta)"
+                  :title="motivoDevolver(venta)"
                   @click="iniciarDevolucion(venta)"
                 >
                   Devolver

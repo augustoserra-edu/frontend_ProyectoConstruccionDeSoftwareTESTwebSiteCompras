@@ -151,7 +151,10 @@ async function generarOrdenVenta() {
       tipoComprobante: tipoComprobante.value,
       items: items.value.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad })),
     })
-    alert(`Orden de venta N° ${orden.id} generada. Total $${orden.total.toLocaleString('es-AR')}`)
+    alert(
+      `Orden de venta N° ${orden.id} generada. Total $${orden.total.toLocaleString('es-AR')}.\n` +
+        'Estado: En proceso. Finanzas la factura desde su sector.',
+    )
 
     items.value = []
     clienteEncontrado.value = null

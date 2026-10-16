@@ -1,4 +1,12 @@
-export type EstadoVenta = 'Confirmada' | 'Devolución parcial' | 'Anulada'
+export type EstadoVenta = 'En proceso' | 'Confirmada' | 'Devuelta' | 'Anulada'
+
+// Qué significa cada estado de una orden de venta (se muestra en la pantalla de Devoluciones)
+export const ESTADOS_VENTA: { estado: EstadoVenta; descripcion: string }[] = [
+  { estado: 'En proceso', descripcion: 'La orden se generó y Finanzas todavía no la facturó.' },
+  { estado: 'Confirmada', descripcion: 'Finanzas ya la facturó. Es la única que se puede devolver.' },
+  { estado: 'Devuelta', descripcion: 'Se hizo una nota de crédito con la devolución de productos.' },
+  { estado: 'Anulada', descripcion: 'La orden se anuló y se repuso el stock.' },
+]
 
 export interface ItemVentaHistorial {
   productoId: number
@@ -45,7 +53,7 @@ export const VENTAS_MOCK: VentaHistorial[] = [
     fecha: '2026-08-30 16:05',
     cliente: 'Estudio ABC',
     total: 128400,
-    estado: 'Devolución parcial',
+    estado: 'Devuelta',
     items: [
       { productoId: 2, nombre: 'Hierro Conformado 12mm x 12m', cantidadVendida: 6 },
     ],
