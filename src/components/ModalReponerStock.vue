@@ -5,6 +5,7 @@ import {
   obtenerProveedores,
   type ProveedorAPI
 } from '../services/comprasService'
+import { mensajeErrorApi } from '../utils/erroresApi'
 
 const props = defineProps<{
   mostrar: boolean
@@ -52,7 +53,7 @@ watch(() => props.mostrar, async (abierto) => {
         proveedorSeleccionadoId.value = proveedores.value[0].proveedor_id
       }
     } catch (error) {
-      console.error('Error cargando proveedores:', error)
+      errorValidacion.value = mensajeErrorApi(error)
       proveedores.value = []
     } finally {
       cargandoProveedores.value = false

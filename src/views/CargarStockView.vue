@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { PRODUCTOS_MOCK, type Producto } from '../types/producto'
 import { obtenerProductos } from '../services/productosService'
 import { crearOrdenCompra } from '../services/comprasService'
+import { mensajeErrorApi } from '../utils/erroresApi'
 import ModalReponerStock from '../components/ModalReponerStock.vue'
 
 // Estado reactivo conectado
@@ -96,8 +97,7 @@ async function confirmarReposicion(datos: {
     productoSeleccionado.value = null
     cerrarModalReponer()
   } catch (error) {
-    console.error('Error al emitir la orden de compra:', error)
-    mensajeError.value = 'No se pudo generar la orden de compra. Verifique la conexión con el servidor.'
+    mensajeError.value = mensajeErrorApi(error)
   }
 
   setTimeout(() => {

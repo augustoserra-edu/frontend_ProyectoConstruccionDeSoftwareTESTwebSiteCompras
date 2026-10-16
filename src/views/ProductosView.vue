@@ -95,15 +95,14 @@ async function darDeBaja() {
 
   try {
     await inactivarProducto(id)
+    const idx = listaProductos.value.findIndex(p => p.producto_id === id)
+    if (idx !== -1) listaProductos.value[idx].activo = false
+    productoSeleccionado.value = null
+    mensajeExito.value = 'Producto inactivado correctamente.'
   } catch (error) {
-    console.warn('Inactivación aplicada localmente.', error)
+    mensajeExito.value = ''
+    alert(mensajeErrorApi(error))
   }
-
-  const idx = listaProductos.value.findIndex(p => p.producto_id === id)
-  if (idx !== -1) {
-    listaProductos.value[idx].activo = false
-  }
-  productoSeleccionado.value = null
 }
 
 async function guardarProducto(datos: any) {
