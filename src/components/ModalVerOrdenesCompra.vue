@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
-import { limpiarTexto, importeValido, fechaValida } from '../utils/validacionesCompras'
 import { normalizarBusqueda } from '../utils/busqueda'
 import type { OrdenCompraCabecera, OrdenCompraDetalle } from '../types/compra'
 import type { FacturaCompra, EstadoCompra } from '../types/compra'
-import { claseEstadoCompra, normalizarEstadoCompra, transicionPermitida, estadoCompraReconocido, etiquetaEstadoCompra, type DatosFacturaCompra } from '../services/comprasService'
+import { claseEstadoCompra, normalizarEstadoCompra, transicionPermitida, estadoCompraReconocido, etiquetaEstadoCompra } from '../services/comprasService'
 import type { Proveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
 
@@ -25,7 +24,6 @@ const props = defineProps<{
   mensaje: string
 }>()
 const emit = defineEmits<{
-  (e: 'enviar-a-finanzas', ordenId: number, datos: DatosFacturaCompra): void
   (e: 'editar', ordenId: number): void
   (e: 'cerrar'): void
   (e: 'reintentar-facturas'): void
@@ -36,28 +34,11 @@ const accionesEstado = [
   { estado: 'aprobada', etiqueta: 'Aprobar', clase: 'btn-outline-success' },
   { estado: 'rechazada', etiqueta: 'Rechazar', clase: 'btn-outline-danger' },
   { estado: 'recibida', etiqueta: 'Recibir', clase: 'btn-outline-primary' },
-  { estado: 'contabilizado', etiqueta: 'Contabilizar', clase: 'btn-outline-success' },
   { estado: 'devuelto', etiqueta: 'Devolver', clase: 'btn-outline-danger' }
 ]
 const accionesDisponibles = computed(() => seleccionada.value
   ? accionesEstado.filter(accion => transicionPermitida(seleccionada.value!.estado, accion.estado))
   : [])
-
-const numeroFactura = ref('')
-const fechaFactura = ref('')
-const impuestosFactura = ref<number | string>(0)
-const errorFactura = ref('')
-function enviarFactura() {
-  if (!seleccionada.value || seleccionada.value.estado !== 'recibida' || props.actualizando || props.cargandoFacturas || props.errorFacturas || facturasSeleccionadas.value.length) return
-  const impuestos = Number(impuestosFactura.value)
-  const numero = limpiarTexto(numeroFactura.value)
-  if (!numero || numero.length > 50 || !fechaValida(fechaFactura.value) || String(impuestosFactura.value).trim() === '' || !importeValido(impuestos) || !importeValido(Math.round((seleccionada.value.total + impuestos) * 100) / 100)) {
-    errorFactura.value = 'Completá número, fecha e importe de impuestos válido.'
-    return
-  }
-  errorFactura.value = ''
-  emit('enviar-a-finanzas', seleccionada.value.ordencompra_id, { numero, fecha: fechaFactura.value, impuestos })
-}
 
 const consultaMobile = typeof window !== 'undefined' ? window.matchMedia('(max-width: 991.98px)') : null
 const esMobile = ref(consultaMobile?.matches ?? false)
@@ -68,13 +49,6 @@ onBeforeUnmount(() => consultaMobile?.removeEventListener('change', actualizarMo
 const busqueda = ref('')
 const filtroEstado = ref<OrdenCompraCabecera['estado'] | ''>('')
 const ordenId = ref<number | null>(null)
-watch(() => [props.mostrar, ordenId.value], () => {
-  numeroFactura.value = ''
-  const hoy = new Date()
-  fechaFactura.value = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
-  impuestosFactura.value = 0
-  errorFactura.value = ''
-})
 
 const buscador = ref<HTMLInputElement | null>(null)
 let focoAnterior: HTMLElement | null = null
@@ -221,7 +195,7 @@ function mantenerFoco(event: KeyboardEvent) {
                           type="button"
                           class="btn btn-sm"
                           :class="accion.clase"
-                          :disabled="actualizando || (accion.estado === 'aprobada' && !detallesSeleccionados.length) || (accion.estado === 'contabilizado' && (cargandoFacturas || !!errorFacturas || !facturasSeleccionadas.length))"
+                          :disabled="actualizando || (accion.estado === 'aprobada' && !detallesSeleccionados.length)"
                           @click="cambiarEstado(accion.estado)"
                         >{{ accion.etiqueta }}</button>
                         <span v-if="!accionesDisponibles.length" class="text-muted small fst-italic">
@@ -229,19 +203,7 @@ function mantenerFoco(event: KeyboardEvent) {
                         </span>
                       </div>
                     </div>
-                    <form v-if="seleccionada.estado === 'recibida' && !cargandoFacturas && !errorFacturas && !facturasSeleccionadas.length" class="border rounded p-3 mb-4" @submit.prevent="enviarFactura">
-                      <h6 class="fw-bold">Enviar a Finanzas</h6>
-                      <p class="small text-muted">Ingresá los datos de la factura de compra. Al enviarla, la orden quedará contabilizada.</p>
-                      <div v-if="errorFactura" class="alert alert-danger" role="alert">{{ errorFactura }}</div>
-                      <fieldset :disabled="actualizando">
-                        <div class="row g-2">
-                          <div class="col-12"><label for="compra-factura-numero" class="form-label">Número de factura</label><input v-texto-limpio id="compra-factura-numero" v-model="numeroFactura" class="form-control" maxlength="50" required /></div>
-                          <div class="col-sm-6"><label for="compra-factura-fecha" class="form-label">Fecha</label><input id="compra-factura-fecha" v-model="fechaFactura" type="date" class="form-control" required /></div>
-                          <div class="col-sm-6"><label for="compra-factura-impuestos" class="form-label">Impuestos (importe en $)</label><input id="compra-factura-impuestos" v-model="impuestosFactura" type="number" min="0" max="9999999999.99" step="0.01" class="form-control" required /></div>
-                        </div>
-                        <button type="submit" class="btn btn-success mt-3">{{ actualizando ? 'Enviando…' : 'Enviar a Finanzas y contabilizar' }}</button>
-                      </fieldset>
-                    </form>
+                    <p v-if="seleccionada.estado === 'recibida'" class="alert alert-info small">La orden está disponible para facturar en Finanzas. Pasará a Contabilizado cuando se registre la factura.</p>
                     <div class="row g-3 mb-4">
                       <div class="col-sm-6"><span class="small text-muted d-block">Fecha de la orden</span><strong>{{ seleccionada.fecha }}</strong></div>
                       <div class="col-12 bg-light rounded p-3">

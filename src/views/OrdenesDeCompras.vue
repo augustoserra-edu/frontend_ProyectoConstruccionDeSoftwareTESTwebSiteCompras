@@ -8,7 +8,7 @@ import { normalizarBusqueda } from '../utils/busqueda'
 import { mensajeErrorApi } from '../utils/erroresApi'
 import type { ProductoProveedor } from '../services/productosService'
 import { obtenerCatalogoProductosProveedor } from '../services/proveedoresService'
-import { editarOrdenCompra, actualizarEstadoCompra, claseEstadoCompra, buscarEstadoCompra, normalizarEstadoCompra, crearOrdenCompra, obtenerProveedores, enviarOrdenAFinanzas, type DatosFacturaCompra, etiquetaEstadoCompra, obtenerEstadosCompra, obtenerFacturasCompra, obtenerOrdenesCompra, presentarDetalles, presentarOrden, transicionPermitida, type OrdenCompraAPI } from '../services/comprasService'
+import { editarOrdenCompra, actualizarEstadoCompra, claseEstadoCompra, buscarEstadoCompra, normalizarEstadoCompra, crearOrdenCompra, obtenerProveedores, etiquetaEstadoCompra, obtenerEstadosCompra, sincronizarComprasFacturadas, obtenerOrdenesCompra, presentarDetalles, presentarOrden, transicionPermitida, type OrdenCompraAPI } from '../services/comprasService'
 import type { Proveedor } from '../types/proveedor'
 import type { EstadoCompra, FacturaCompra, NuevaOrdenCompra } from '../types/compra'
 
@@ -45,7 +45,7 @@ const ariaOrden = (campo: CampoOrden) => campoOrden.value !== campo ? 'none' : s
 const etiquetaOrden = (campo: CampoOrden, nombre: string) => `Ordenar por ${nombre} ${campoOrden.value === campo && sentidoOrden.value === 'asc' ? 'descendente' : 'ascendente'}`
 const mensajeConfirmacion = ref('')
 let resolverConfirmacion: ((confirmado: boolean) => void) | null = null
-const accionesBloqueadas = computed(() => cargando.value || guardando.value || guardandoEstado.value || !!mensajeConfirmacion.value)
+const accionesBloqueadas = computed(() => cargando.value || guardando.value || guardandoEstado.value || cargandoFacturas.value || !!mensajeConfirmacion.value)
 const cabeceras = computed(() => ordenesAPI.value.map(o => presentarOrden(o, estados.value)))
 const detalles = computed(() => ordenesAPI.value.flatMap(presentarDetalles))
 const nombreProveedor = (id: number) => {
@@ -101,6 +101,7 @@ async function cargar() {
     estados.value = catalogoEstados
     limiteFilas.value = filasPorPagina
     catalogosListos.value = true
+    await cargarFacturas()
   } catch (error) {
     errorConsulta.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error))
   } finally { cargando.value = false }
@@ -120,7 +121,14 @@ async function cargarFacturas() {
   cargandoFacturas.value = true
   errorFacturas.value = ''
   facturas.value = []
-  try { facturas.value = await obtenerFacturasCompra() }
+  try {
+    const resultado = await sincronizarComprasFacturadas()
+    facturas.value = resultado.facturas
+    ordenesAPI.value = resultado.ordenes
+    errorFacturas.value = resultado.errores.map(({ ordenId, causa }) =>
+      'Orden #' + ordenId + ': no se pudo actualizar a Contabilizado. ' + (causa instanceof Error && !('isAxiosError' in causa) ? causa.message : mensajeErrorApi(causa))
+    ).join(' ')
+  }
   catch (error) { errorFacturas.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error)) }
   finally { cargandoFacturas.value = false }
 }
@@ -175,7 +183,6 @@ onBeforeUnmount(() => resolverCambioEstado(false))
 async function cambiarEstado(id: number, nuevo: string) {
   const orden = cabeceras.value.find(o => o.ordencompra_id === id)
   if (!orden || accionesBloqueadas.value || !transicionPermitida(orden.estado, nuevo)) return
-  if (nuevo === 'contabilizado' && (cargandoFacturas.value || errorFacturas.value || !facturas.value.some(factura => factura.ordencompra_id === id))) return
   let estado = buscarEstadoCompra(estados.value, nuevo)
   if (!estado) {
     guardandoEstado.value = true
@@ -209,23 +216,14 @@ async function cambiarEstado(id: number, nuevo: string) {
   } catch (error) { errorEstado.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error)) }
   finally { guardandoEstado.value = false }
 }
-async function enviarAFinanzas(id: number, datos: DatosFacturaCompra) {
-  if (accionesBloqueadas.value || cargandoFacturas.value || errorFacturas.value) return
-  const orden = cabeceras.value.find(item => item.ordencompra_id === id)
-  if (orden?.estado !== 'recibida' || facturas.value.some(factura => factura.ordencompra_id === id)) return
-  guardandoEstado.value = true
-  errorEstado.value = ''
-  mensaje.value = ''
-  try {
-    const actualizada = await enviarOrdenAFinanzas(id, datos)
-    const indice = ordenesAPI.value.findIndex(item => item.ordencompra_id === id)
-    if (indice !== -1) ordenesAPI.value[indice] = actualizada
-    mensaje.value = `Orden #${id} contabilizada y factura enviada a Finanzas.`
-    await cargarFacturas()
-  } catch (error) { errorEstado.value = mensajeErrorApi(error) }
-  finally { guardandoEstado.value = false }
+function actualizarAlVolver() {
+  if (document.visibilityState === 'visible' && !accionesBloqueadas.value && !mostrarNuevaOrden.value) void cargar()
 }
-onMounted(cargar)
+onMounted(() => {
+  void cargar()
+  window.addEventListener('focus', actualizarAlVolver)
+})
+onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
 </script>
 
 <template>
@@ -233,11 +231,13 @@ onMounted(cargar)
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
       <div><h3 class="fw-bold mb-0">Órdenes de Compra</h3><p class="text-muted small mb-0">Registro y consulta de compras a proveedores</p></div>
       <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-secondary" :disabled="accionesBloqueadas" @click="cargar">Actualizar</button>
         <button class="btn btn-coralon" :disabled="accionesBloqueadas || !catalogosListos" @click="abrirNuevaOrden">Nueva orden</button>
       </div>
     </div>
     <div v-if="mensaje" class="alert alert-success" role="status">{{ mensaje }}</div>
     <div v-if="errorConsulta" class="alert alert-danger" role="alert">{{ errorConsulta }} <button class="btn btn-sm btn-outline-danger" :disabled="accionesBloqueadas" @click="cargar">Reintentar</button></div>
+    <div v-if="errorFacturas" class="alert alert-warning" role="alert">{{ errorFacturas }} <button class="btn btn-sm btn-outline-secondary" :disabled="accionesBloqueadas" @click="cargarFacturas">Reintentar</button></div>
     <div v-if="errorEstado" class="alert alert-danger" role="alert">{{ errorEstado }}</div>
     <div class="card border-0 shadow-sm p-3 mb-4"><div class="row g-3">
       <div class="col-md-6"><label for="buscar-orden" class="form-label">Buscar orden</label><input maxlength="150" v-texto-limpio id="buscar-orden" v-model="filtroBusqueda" type="search" class="form-control" placeholder="Número, proveedor o fecha" /></div>
@@ -307,7 +307,7 @@ onMounted(cargar)
       <button v-if="hayMasOrdenes" type="button" class="btn btn-outline-coralon" :disabled="accionesBloqueadas" @click="cargarMas">Cargar más</button>
     </div>
     <ModalNuevaOrdenCompra :orden-a-editar="ordenAEditar" :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
-    <ModalVerOrdenesCompra @editar="abrirEdicion" :mostrar="mostrarConsultaOrdenes" :orden-inicial-id="ordenConsultaId" :ordenes="cabeceras" :detalles="detalles" :proveedores="proveedores" :productos="productos" :estados="estados" :facturas="facturas" :cargando-facturas="cargandoFacturas" :error-facturas="errorFacturas" :actualizando="accionesBloqueadas" :error="errorEstado" :mensaje="mensaje" @cerrar="mostrarConsultaOrdenes = false" @cambiar-estado="cambiarEstado" @enviar-a-finanzas="enviarAFinanzas" @reintentar-facturas="cargarFacturas" />
+    <ModalVerOrdenesCompra @editar="abrirEdicion" :mostrar="mostrarConsultaOrdenes" :orden-inicial-id="ordenConsultaId" :ordenes="cabeceras" :detalles="detalles" :proveedores="proveedores" :productos="productos" :estados="estados" :facturas="facturas" :cargando-facturas="cargandoFacturas" :error-facturas="errorFacturas" :actualizando="accionesBloqueadas" :error="errorEstado" :mensaje="mensaje" @cerrar="mostrarConsultaOrdenes = false" @cambiar-estado="cambiarEstado" @reintentar-facturas="cargarFacturas" />
     <ModalConfirmacion v-if="mensajeConfirmacion" :mensaje="mensajeConfirmacion" @resolver="resolverCambioEstado" />
   </div>
 </template>

@@ -68,7 +68,7 @@ export const estadosCompra = ['pendiente', 'aprobada', 'rechazada', 'recibida', 
 const transicionesCompra: Record<string, readonly string[]> = {
   pendiente: ['aprobada', 'rechazada'],
   aprobada: ['recibida', 'devuelto'],
-  recibida: ['contabilizado'],
+  recibida: [],
   rechazada: [],
   devuelto: [],
   contabilizado: []
@@ -120,13 +120,46 @@ export async function obtenerFacturasCompra(): Promise<FacturaCompra[]> {
   const facturas = await obtenerTodasLasPaginas<{
     id: number; orden_compra_id: number | null; numero: string; tipo: string; fecha: string; total: string; subtotal: string; impuestos: string
   }>('/contabilidad/facturas/')
-  return facturas.filter(f => f.orden_compra_id != null).map(f => ({
+  return facturas.filter(f => f.tipo === 'COMPRA' && f.orden_compra_id != null).map(f => ({
     facturacabecera_id: f.id, ordencompra_id: f.orden_compra_id!, numero: f.numero,
     tipo: f.tipo, fecha: f.fecha, total: Number(f.total), subtotal: Number(f.subtotal), impuesto: Number(f.impuestos)
   }))
 }
 
 export type ProveedorAPI = Proveedor
+
+// Compras sincroniza estados, sin emitir facturas ni asientos.
+let sincronizacionFacturas: Promise<{
+  ordenes: OrdenCompraAPI[]
+  facturas: FacturaCompra[]
+  errores: { ordenId: number; causa: unknown }[]
+}> | null = null
+
+export function sincronizarComprasFacturadas() {
+  if (sincronizacionFacturas) return sincronizacionFacturas
+  sincronizacionFacturas = (async () => {
+    const [ordenes, facturas, estados] = await Promise.all([
+      obtenerOrdenesCompra(), obtenerFacturasCompra(), obtenerEstadosCompra()
+    ])
+    const facturadas = new Set(facturas.map(factura => factura.ordencompra_id))
+    const pendientes = ordenes.filter(orden =>
+      presentarOrden(orden, estados).estado === 'recibida' && facturadas.has(orden.ordencompra_id)
+    )
+    const errores: { ordenId: number; causa: unknown }[] = []
+    const contabilizado = buscarEstadoCompra(estados, 'contabilizado')
+    for (const orden of pendientes) {
+      try {
+        if (!contabilizado) throw new Error('El catálogo no contiene el estado Contabilizado.')
+        const actualizada = await actualizarEstadoCompra(orden.ordencompra_id, contabilizado.estadoordencompra_id)
+        ordenes[ordenes.indexOf(orden)] = actualizada
+      } catch (causa) {
+        errores.push({ ordenId: orden.ordencompra_id, causa })
+      }
+    }
+    return { ordenes, facturas, errores }
+  })().finally(() => { sincronizacionFacturas = null })
+  return sincronizacionFacturas
+}
 
 interface ProveedorRespuestaAPI {
   proveedor_id: number
@@ -161,18 +194,4 @@ export function precioCompraProveedor(proveedor: Proveedor, producto: { id: numb
     return proveedor.preciosCompra[producto.id] ?? NaN
   }
   return producto.precio ?? NaN
-}
-
-export interface DatosFacturaCompra {
-  numero: string
-  fecha: string
-  impuestos: number
-}
-
-export async function enviarOrdenAFinanzas(id: number, datos: DatosFacturaCompra) {
-  const { data } = await api.post<{ orden: OrdenCompraAPI }>(
-    `/compras/ordenes-compra/${id}/enviar-a-finanzas/`,
-    { numero: datos.numero.trim(), fecha: new Date(`${datos.fecha}T12:00:00`).toISOString(), impuestos: datos.impuestos.toFixed(2) }
-  )
-  return data.orden
 }

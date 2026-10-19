@@ -80,7 +80,7 @@ test('invoices are filtered by order and translated from the accounting API', as
 
 test('purchase workflow follows fixes-CompraProveedores, including terminal states', () => {
   const states = ['pendiente', 'aprobada', 'rechazada', 'recibida', 'devuelto', 'contabilizado']
-  const allowed = new Set(['pendiente:aprobada', 'pendiente:rechazada', 'aprobada:recibida', 'aprobada:devuelto', 'recibida:contabilizado'])
+  const allowed = new Set(['pendiente:aprobada', 'pendiente:rechazada', 'aprobada:recibida', 'aprobada:devuelto'])
   for (const current of states) {
     assert.equal(compras.estadoCompraReconocido(current), true)
     for (const next of states) {
@@ -111,21 +111,6 @@ test('purchase providers use supplier purchase prices, including missing and zer
   assert.deepEqual(await compras.obtenerProveedores(), [{ proveedor_id: 12, productos: [5, 6, 7], preciosCompra: { 5: 10.5, 6: null, 7: 0 } }])
 })
 
-test('sending an order to finance uses the dedicated endpoint and returns the updated order', async () => {
-  handler = config => {
-    assert.equal(config.method, 'post')
-    assert.equal(config.url, '/compras/ordenes-compra/41/enviar-a-finanzas/')
-    const body = JSON.parse(config.data)
-    assert.deepEqual(Object.keys(body).sort(), ['fecha', 'impuestos', 'numero'])
-    assert.equal(body.numero, 'C-0001')
-    assert.equal(body.impuestos, '21.50')
-    assert.ok(!Number.isNaN(Date.parse(body.fecha)))
-    return response(config, { orden: { ...orden, estado: 99 }, factura: { id: 100 } })
-  }
-  assert.equal((await compras.enviarOrdenAFinanzas(41, { numero: ' C-0001 ', fecha: '2026-10-09', impuestos: 21.5 })).estado, 99)
-  handler = config => { throw new axios.AxiosError('Duplicate invoice', 'ERR_BAD_REQUEST', config, null, { status: 400 }) }
-  await assert.rejects(compras.enviarOrdenAFinanzas(41, { numero: 'C-0001', fecha: '2026-10-09', impuestos: 0 }))
-})
 
 
 test('rejection resolves catalog variants to their real ID without inventing missing states', () => {
@@ -204,4 +189,68 @@ test('text inputs collapse whitespace before model updates and trim on blur', as
   campo.dispatchEvent(new Event('input'))
   assert.equal(campo.value.length, 150)
   vTextoLimpio.beforeUnmount(campo)
+})
+
+
+test('only received purchases with a purchase invoice are synchronized, once', async () => {
+  const states = [{ estadoordencompra_id: 7, nombre: 'Recibida' }, { estadoordencompra_id: 9, nombre: 'Contabilizado' }, { estadoordencompra_id: 2, nombre: 'Pendiente' }]
+  const orders = [orden, { ...orden, ordencompra_id: 42 }, { ...orden, ordencompra_id: 43, estado: 2 }, { ...orden, ordencompra_id: 44, estado: 9 }]
+  let patches = 0
+  handler = config => {
+    if (config.method === 'patch') {
+      assert.equal(config.url, '/compras/ordenes-compra/41/')
+      assert.deepEqual(JSON.parse(config.data), { estado: 9 })
+      patches++
+      orders[0] = { ...orden, estado: 9 }
+      return response(config, orders[0])
+    }
+    if (config.url === '/compras/ordenes-compra/') return response(config, orders.map(o => ({ ...o })))
+    if (config.url === '/compras/estados-orden-compra/') return response(config, states)
+    assert.equal(config.url, '/contabilidad/facturas/')
+    return response(config, [
+      { id: 1, tipo: 'COMPRA', orden_compra_id: 41 },
+      { id: 2, tipo: 'COMPRA', orden_compra_id: 41 },
+      { id: 3, tipo: 'VENTA', orden_compra_id: 42 },
+      { id: 4, tipo: 'COMPRA', orden_compra_id: 43 },
+      { id: 5, tipo: 'COMPRA', orden_compra_id: 44 }
+    ])
+  }
+  const pending = compras.sincronizarComprasFacturadas()
+  assert.equal(compras.sincronizarComprasFacturadas(), pending)
+  const result = await pending
+  assert.equal(result.ordenes[0].estado, 9)
+  assert.deepEqual(result.errores, [])
+  await compras.sincronizarComprasFacturadas()
+  assert.equal(patches, 1)
+})
+
+test('failed invoice lookup never changes purchase states', async () => {
+  handler = config => {
+    assert.equal(config.method, 'get')
+    if (config.url === '/contabilidad/facturas/') throw new Error('No disponible')
+    return response(config, [])
+  }
+  await assert.rejects(compras.sincronizarComprasFacturadas(), /No disponible/)
+})
+
+test('API rejection preserves real order state and allows retry', async () => {
+  let reject = true
+  handler = config => {
+    if (config.method === 'patch') {
+      if (reject) throw new Error('Cambio rechazado')
+      return response(config, { ...orden, estado: 9 })
+    }
+    if (config.url === '/compras/ordenes-compra/') return response(config, [{ ...orden }])
+    if (config.url === '/compras/estados-orden-compra/') return response(config, [
+      { estadoordencompra_id: 7, nombre: 'Recibida' }, { estadoordencompra_id: 9, nombre: 'Contabilizado' }
+    ])
+    return response(config, [{ tipo: 'COMPRA', orden_compra_id: 41 }])
+  }
+  const failed = await compras.sincronizarComprasFacturadas()
+  assert.equal(failed.ordenes[0].estado, 7)
+  assert.equal(failed.errores[0].ordenId, 41)
+  reject = false
+  const retried = await compras.sincronizarComprasFacturadas()
+  assert.equal(retried.ordenes[0].estado, 9)
+  assert.deepEqual(retried.errores, [])
 })
