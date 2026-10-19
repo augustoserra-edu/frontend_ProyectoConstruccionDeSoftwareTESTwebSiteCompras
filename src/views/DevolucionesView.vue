@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { DESTINOS_DEVOLUCION, ESTADOS_VENTA, type VentaHistorial } from '../types/devolucion'
 import { obtenerOrdenesVenta, anularOrdenVenta, crearNotaCredito, textoError } from '../services/ventasService'
 import ModalAnulacion from '../components/ModalAnulacion.vue'
+import { avisoError, avisoExito } from '../utils/avisos'
 
 const ventas = ref<VentaHistorial[]>([])
 const cargando = ref(false)
@@ -81,7 +82,7 @@ async function confirmarAnulacion(datos: { ventaId: number; motivo: string; deta
     await cargarVentas() // el estado y el stock los define el backend
   } catch (err) {
     console.error(err)
-    alert(textoError(err))
+    avisoError(textoError(err), 'No se pudo anular la orden')
   }
 }
 
@@ -100,8 +101,6 @@ function iniciarDevolucion(venta: VentaHistorial) {
     }
   })
 }
-
-const dejarComoSaldo = ref(false)
 
 const itemsSeleccionadosCount = computed(
   () => Object.values(itemsSeleccionados.value).filter((i) => i.seleccionado).length
@@ -126,7 +125,7 @@ const guardandoNota = ref(false)
 async function generarNotaCredito() {
   if (!ventaParaDevolver.value) return
   if (itemsSeleccionadosCount.value === 0) {
-    alert('Error: seleccioná al menos un ítem para devolver.')
+    avisoError('Seleccioná al menos un ítem para devolver.', 'Faltan datos')
     return
   }
 
@@ -142,7 +141,10 @@ async function generarNotaCredito() {
 
   const invalido = items.find((i) => !Number.isInteger(i.cantidad) || i.cantidad < 1 || i.cantidad > i.cantidadVendida)
   if (invalido) {
-    alert(`Error: la cantidad a devolver de "${invalido.nombre}" debe estar entre 1 y ${invalido.cantidadVendida}.`)
+    avisoError(
+      `La cantidad a devolver de "${invalido.nombre}" debe estar entre 1 y ${invalido.cantidadVendida}.`,
+      'Cantidad inválida',
+    )
     return
   }
 
@@ -151,15 +153,15 @@ async function generarNotaCredito() {
     await crearNotaCredito({
       ordenId: ventaParaDevolver.value.id,
       monto: montoAReembolsar.value,
-      saldoAFavor: dejarComoSaldo.value,
+      saldoAFavor: false,
       items: items.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad, destino: i.destino })),
     })
-    alert(`Nota de crédito generada: $${montoAReembolsar.value.toLocaleString('es-AR')}`)
+    avisoExito(`Monto: $${montoAReembolsar.value.toLocaleString('es-AR')}`, 'Nota de crédito generada')
     ventaParaDevolver.value = null
     await cargarVentas()
   } catch (err) {
     console.error(err)
-    alert(textoError(err))
+    avisoError(textoError(err), 'No se pudo generar la nota de crédito')
   } finally {
     guardandoNota.value = false
   }
@@ -332,11 +334,6 @@ async function generarNotaCredito() {
             <div class="d-flex justify-content-between mb-3 fw-bold">
               <span>Monto a reembolsar</span>
               <span>${{ montoAReembolsar.toLocaleString('es-AR', { maximumFractionDigits: 0 }) }}</span>
-            </div>
-
-            <div class="form-check mb-3">
-              <input v-model="dejarComoSaldo" class="form-check-input" type="checkbox" id="saldoFavor" />
-              <label class="form-check-label" for="saldoFavor">Dejar como saldo a favor del cliente</label>
             </div>
 
             <button class="btn btn-coralon w-100 fw-semibold" type="button" :disabled="guardandoNota" @click="generarNotaCredito">
