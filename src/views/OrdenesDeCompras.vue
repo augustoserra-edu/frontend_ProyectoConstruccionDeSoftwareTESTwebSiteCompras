@@ -60,7 +60,7 @@ const ordenesFiltradas = computed(() => cabeceras.value.filter(o =>
   normalizarBusqueda(`${o.ordencompra_id} ${nombreProveedor(o.proveedor_id)} ${fechaVisible(o.fecha)}`).includes(normalizarBusqueda(filtroBusqueda.value))
 ).sort((a, b) => {
   const diferenciaNumero = a.ordencompra_id - b.ordencompra_id
-  let comparacion = 0
+  let comparacion: number
   if (campoOrden.value === 'numero') comparacion = diferenciaNumero
   else if (campoOrden.value === 'proveedor') {
     comparacion = nombreProveedor(a.proveedor_id).localeCompare(nombreProveedor(b.proveedor_id), 'es-AR', { sensitivity: 'base', numeric: true })
@@ -231,7 +231,7 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
       <div><h3 class="fw-bold mb-0">Órdenes de Compra</h3><p class="text-muted small mb-0">Registro y consulta de compras a proveedores</p></div>
       <div class="d-flex flex-wrap gap-2">
-        <button class="btn btn-outline-secondary" :disabled="accionesBloqueadas" @click="cargar">Actualizar</button>
+
         <button class="btn btn-coralon" :disabled="accionesBloqueadas || !catalogosListos" @click="abrirNuevaOrden">Nueva orden</button>
       </div>
     </div>

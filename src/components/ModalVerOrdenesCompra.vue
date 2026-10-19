@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { normalizarBusqueda } from '../utils/busqueda'
 import type { OrdenCompraCabecera, OrdenCompraDetalle } from '../types/compra'
 import type { FacturaCompra, EstadoCompra } from '../types/compra'
-import { claseEstadoCompra, normalizarEstadoCompra, transicionPermitida, estadoCompraReconocido, etiquetaEstadoCompra } from '../services/comprasService'
+import { claseEstadoCompra, normalizarEstadoCompra, transicionPermitida, estadoCompraReconocido, etiquetaEstadoCompra, formatearFechaHoraCompra } from '../services/comprasService'
 import type { Proveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
 
@@ -205,7 +205,7 @@ function mantenerFoco(event: KeyboardEvent) {
                     </div>
                     <p v-if="seleccionada.estado === 'recibida'" class="alert alert-info small">La orden está disponible para facturar en Finanzas. Pasará a Contabilizado cuando se registre la factura.</p>
                     <div class="row g-3 mb-4">
-                      <div class="col-sm-6"><span class="small text-muted d-block">Fecha de la orden</span><strong>{{ seleccionada.fecha }}</strong></div>
+                      <div class="col-sm-6"><span class="small text-muted d-block">Fecha de la orden</span><strong>{{ formatearFechaHoraCompra(seleccionada.fecha) }}</strong></div>
                       <div class="col-12 bg-light rounded p-3">
                         <span class="small text-muted d-block">Proveedor</span>
                         <strong>{{ proveedorSeleccionado ? `${proveedorSeleccionado.nombre} ${proveedorSeleccionado.apellido}` : `Proveedor #${seleccionada.proveedor_id}` }}</strong>

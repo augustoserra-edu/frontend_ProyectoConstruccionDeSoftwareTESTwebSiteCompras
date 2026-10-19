@@ -41,7 +41,7 @@ export function presentarDetalles(orden: OrdenCompraAPI): OrdenCompraDetalle[] {
 export async function crearOrdenCompra(datos: NuevaOrdenCompra): Promise<OrdenCompraAPI> {
   const { data } = await api.post<OrdenCompraAPI>('/compras/ordenes-compra/', {
     proveedor: datos.cabecera.proveedor_id,
-    fecha: new Date(`${datos.cabecera.fecha}T12:00:00`).toISOString(),
+    fecha: new Date().toISOString(),
     // El servidor calcula el total a partir de los renglones.
     detalles: datos.detalles.map(d => ({
       producto_id: d.producto_id, cantidad: d.cantidad, precio_unitario: d.preciounitario.toFixed(2)
@@ -114,6 +114,20 @@ export function etiquetaEstadoCompra(estado: string) {
   if (estado === 'rechazada') return 'Rechazado'
   if (estado === 'recibida') return 'Recibido'
   return estado.charAt(0).toUpperCase() + estado.slice(1)
+}
+
+export function formatearFechaHoraCompra(valor: string) {
+  // Los registros que solo tienen fecha no deben inventar una hora.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) return valor
+  const fecha = new Date(valor)
+  if (Number.isNaN(fecha.getTime())) return 'Fecha no disponible'
+  const partes = new Intl.DateTimeFormat('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(fecha)
+  const campos = Object.fromEntries(partes.map(({ type, value }) => [type, value]))
+  return `${campos.year}-${campos.month}-${campos.day} ${campos.hour}:${campos.minute}`
 }
 
 export async function obtenerFacturasCompra(): Promise<FacturaCompra[]> {
