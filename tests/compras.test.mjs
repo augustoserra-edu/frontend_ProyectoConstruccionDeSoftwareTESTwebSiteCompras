@@ -1,34 +1,20 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import { readFileSync } from 'node:fs'
-import ts from 'typescript'
+import { test, vi } from 'vitest'
 import axios from 'axios'
+import api from '../src/api/clienteAxios.ts'
+import * as compras from '../src/services/comprasService.ts'
 
-Object.defineProperty(globalThis, 'localStorage', { value: { getItem: () => 'token-prueba' }, configurable: true })
+localStorage.setItem('access_token', 'token-prueba')
 let handler
-axios.defaults.adapter = async config => { assert.equal(config.headers.Authorization, 'Bearer token-prueba'); return handler(config) }
-const cache = new Map()
-function moduleURL(path) {
-  if (cache.has(path)) return cache.get(path)
-  let source = readFileSync(new URL(path, import.meta.url), 'utf8').replaceAll('import.meta.env.VITE_API_BASE_URL', 'undefined')
-  source = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, removeComments: true } }).outputText
-  source = source.replace(/from ['"]([^'"]+)['"]/g, (_, name) => {
-    const url = name.startsWith('.') ? moduleURL(new URL(`${name}.ts`, new URL(path, import.meta.url)).href) : import.meta.resolve(name)
-    return `from '${url}'`
-  })
-  const url = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-  cache.set(path, url)
-  return url
-}
-const compras = await import(moduleURL('../src/services/comprasService.ts'))
+api.defaults.adapter = async config => { assert.equal(config.headers.Authorization, 'Bearer token-prueba'); return handler(config) }
 const response = (config, data) => ({ config, data, status: 200, statusText: 'OK', headers: {} })
 const orden = { ordencompra_id: 41, proveedor: 12, estado: 7, fecha: '2026-10-01T15:00:00Z', total: '21.00', detalles: [{ ordencompradetalle_id: 81, producto_id: 5, cantidad: 2, precio_unitario: '10.50' }] }
 
-test('server states and decimal totals are presented without invented records', () => {
+test('Los estados y totales decimales del servidor se muestran sin inventar registros', () => {
   assert.deepEqual(compras.presentarOrden(orden, [{ estadoordencompra_id: 7, nombre: 'Pendiente' }]), { ordencompra_id: 41, proveedor_id: 12, estado: 'pendiente', fecha: orden.fecha, total: 21 })
   assert.deepEqual(compras.presentarDetalles(orden), [{ ordencompradetalle_id: 81, ordencompra_id: 41, producto_id: 5, cantidad: 2, preciounitario: 10.5, subtotal: 21 }])
 })
-test('new orders are posted in one request with nested details and no mock fields', async () => {
+test('Las órdenes nuevas se envían en una sola solicitud con sus detalles y sin campos simulados', async () => {
   handler = config => {
     assert.equal(config.method, 'post')
     assert.equal(config.url, '/compras/ordenes-compra/')
@@ -41,7 +27,30 @@ test('new orders are posted in one request with nested details and no mock field
   }
   assert.deepEqual(await compras.crearOrdenCompra({ cabecera: { proveedor_id: 12, fecha: '2026-10-01', total: 21 }, detalles: [{ producto_id: 5, cantidad: 2, preciounitario: 10.5 }] }), orden)
 })
-test('editing sends product changes without changing the order date or state and propagates rejection', async () => {
+
+test('Las compras nuevas guardan la hora de envío y no una hora fija al mediodía', async () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-10-19T20:47:31.000Z'))
+  try {
+    handler = config => {
+      assert.equal(JSON.parse(config.data).fecha, '2026-10-19T20:47:31.000Z')
+      return response(config, orden)
+    }
+    await compras.crearOrdenCompra({ cabecera: { proveedor_id: 12, fecha: '2026-10-18', total: 21 }, detalles: [{ producto_id: 5, cantidad: 2, preciounitario: 10.5 }] })
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test('El detalle muestra la fecha y hora argentina sin segundos ni UTC', () => {
+  assert.equal(compras.formatearFechaHoraCompra('2026-10-16T12:00:00-03:00'), '2026-10-16 12:00')
+  assert.equal(compras.formatearFechaHoraCompra('2026-10-16T15:00:00Z'), '2026-10-16 12:00')
+  assert.equal(compras.formatearFechaHoraCompra('2026-10-19T20:47:31Z'), '2026-10-19 17:47')
+  assert.equal(compras.formatearFechaHoraCompra('2026-10-20T01:15:00Z'), '2026-10-19 22:15')
+  assert.equal(compras.formatearFechaHoraCompra('2026-10-16'), '2026-10-16')
+  assert.equal(compras.formatearFechaHoraCompra('invalida'), 'Fecha no disponible')
+})
+test('La edición actualiza productos, conserva fecha y estado e informa los rechazos', async () => {
   const datos = { cabecera: { proveedor_id: 12, fecha: '2026-10-01', total: 31.5 }, detalles: [{ producto_id: 5, cantidad: 3, preciounitario: 10.5 }] }
   handler = config => {
     assert.equal(config.method, 'patch')
@@ -54,7 +63,7 @@ test('editing sends product changes without changing the order date or state and
   await assert.rejects(compras.editarOrdenCompra(41, datos), error => error.response.status === 400)
 })
 
-test('state update sends the server catalog ID and preserves failures', async () => {
+test('El cambio de estado envía el identificador del catálogo e informa los errores', async () => {
   handler = config => {
     assert.equal(config.method, 'patch')
     assert.equal(config.url, '/compras/ordenes-compra/41/')
@@ -62,14 +71,14 @@ test('state update sends the server catalog ID and preserves failures', async ()
     return response(config, { ...orden, estado: 19 })
   }
   assert.equal((await compras.actualizarEstadoCompra(41, 19)).estado, 19)
-  handler = config => { throw new axios.AxiosError('Invalid transition', 'ERR_BAD_REQUEST', config, null, { status: 400 }) }
+  handler = config => { throw new axios.AxiosError('Transición inválida', 'ERR_BAD_REQUEST', config, null, { status: 400 }) }
   await assert.rejects(compras.actualizarEstadoCompra(41, 19))
   assert.equal(compras.transicionPermitida('pendiente', 'recibida'), false)
   assert.equal(compras.transicionPermitida('aprobada', 'recibida'), true)
   assert.equal(compras.transicionPermitida('aprobada', 'rechazada'), false)
   assert.equal(compras.transicionPermitida('recibida', 'rechazada'), false)
 })
-test('invoices are filtered by order and translated from the accounting API', async () => {
+test('Las facturas se filtran por orden y se adaptan desde la API contable', async () => {
   handler = config => response(config, { results: [
     { id: 2, orden_compra_id: null },
     { id: 3, orden_compra_id: 41, tipo: 'COMPRA', numero: '0003', fecha: '2026-10-01', subtotal: '21.00', impuestos: '4.41', total: '25.41' }
@@ -78,7 +87,7 @@ test('invoices are filtered by order and translated from the accounting API', as
 })
 
 
-test('purchase workflow follows fixes-CompraProveedores, including terminal states', () => {
+test('El flujo de compras respeta las transiciones permitidas y los estados finales', () => {
   const states = ['pendiente', 'aprobada', 'rechazada', 'recibida', 'devuelto', 'contabilizado']
   const allowed = new Set(['pendiente:aprobada', 'pendiente:rechazada', 'aprobada:recibida', 'aprobada:devuelto'])
   for (const current of states) {
@@ -95,7 +104,7 @@ test('purchase workflow follows fixes-CompraProveedores, including terminal stat
   assert.equal(compras.etiquetaEstadoCompra('rechazada'), 'Rechazado')
 })
 
-test('catalog retains server names and IDs while sorting the six states', async () => {
+test('El catálogo ordena los seis estados conservando sus nombres e identificadores', async () => {
   const names = ['Contabilizado', 'Devuelto', 'Recibida', 'Rechazada', 'Aprobada', 'Pendiente']
   handler = config => response(config, { results: names.map((nombre, i) => ({ estadoordencompra_id: 20 + i, nombre })), next: null })
   const catalog = await compras.obtenerEstadosCompra()
@@ -104,7 +113,7 @@ test('catalog retains server names and IDs while sorting the six states', async 
   assert.equal(compras.presentarOrden({ ...orden, estado: 24 }, catalog).estado, 'aprobada')
 })
 
-test('purchase providers use supplier purchase prices, including missing and zero prices', async () => {
+test('Los proveedores conservan sus precios de compra, incluidos los faltantes y los valores cero', async () => {
   handler = config => response(config, { results: [{ proveedor_id: 12, productos: [
     { producto_id: 5, precio_compra: '10.50' }, { producto_id: 6, precio_compra: null }, { producto_id: 7, precio_compra: '0.00' }
   ] }], next: null })
@@ -113,7 +122,7 @@ test('purchase providers use supplier purchase prices, including missing and zer
 
 
 
-test('rejection resolves catalog variants to their real ID without inventing missing states', () => {
+test('El rechazo reconoce variantes del catálogo sin inventar estados faltantes', () => {
   for (const nombre of ['Rechazada', 'Rechazado', 'Rechazar', ' RECHAZADA ']) {
     const catalog = [{ estadoordencompra_id: 73, nombre }]
     assert.equal(compras.buscarEstadoCompra(catalog, 'rechazada').estadoordencompra_id, 73)
@@ -128,7 +137,7 @@ test('rejection resolves catalog variants to their real ID without inventing mis
 })
 
 
-test('legacy supplier product IDs remain selectable with catalog prices', async () => {
+test('Los productos del formato anterior siguen disponibles con sus precios de catálogo', async () => {
   handler = config => response(config, { results: [
     { proveedor_id: 12, productos: [5, 6] },
     { proveedor_id: 13, producto_id: 7 },
@@ -145,8 +154,8 @@ test('legacy supplier product IDs remain selectable with catalog prices', async 
 })
 
 
-test('supplier validation normalizes whitespace and checks fields and catalog membership', async () => {
-  const v = await import(moduleURL('../src/utils/validacionesCompras.ts'))
+test('La validación del proveedor normaliza espacios y verifica campos y productos del catálogo', async () => {
+  const v = await import('../src/utils/validacionesCompras.ts')
   const base = { nombre: '  Materiales    Sur  ', apellido: ' SA ', cuit: '20-44215209-9', email: ' contacto@example.com ', telefono: ' +541112345678 ', direccion: ' Calle   12 ', productos: [5] }
   const valid = v.normalizarProveedor(base)
   assert.equal(valid.nombre, 'Materiales Sur')
@@ -160,16 +169,16 @@ test('supplier validation normalizes whitespace and checks fields and catalog me
   assert.equal(v.validarProveedor({ ...valid, email: '', telefono: '', direccion: '' }, [5]), '')
 })
 
-test('invoice dates and money reject invalid or oversized values without rejecting zero', async () => {
-  const v = await import(moduleURL('../src/utils/validacionesCompras.ts'))
+test('Las fechas e importes rechazan valores inválidos o fuera de rango y permiten importe cero', async () => {
+  const v = await import('../src/utils/validacionesCompras.ts')
   for (const importe of [0, 1.23, 0.1 + 0.2, 9999999999.99]) assert.equal(v.importeValido(importe), true)
   for (const importe of [-1, NaN, Infinity, 1.001, 10000000000]) assert.equal(v.importeValido(importe), false)
   assert.equal(v.fechaValida('2028-02-29'), true)
   for (const fecha of ['', '2026-02-29', '2026-04-31', '2026-13-01', '0000-01-01']) assert.equal(v.fechaValida(fecha), false)
 })
 
-test('text inputs collapse whitespace before model updates and trim on blur', async () => {
-  const { vTextoLimpio } = await import(moduleURL('../src/directives/textoLimpio.ts'))
+test('Los campos normalizan espacios antes de actualizar los datos y recortan al perder el foco', async () => {
+  const { vTextoLimpio } = await import('../src/directives/textoLimpio.ts')
   class Campo extends EventTarget {
     value = ''; maxLength = 150; selectionStart = 0;
     setSelectionRange(inicio) { this.selectionStart = inicio }
@@ -192,7 +201,7 @@ test('text inputs collapse whitespace before model updates and trim on blur', as
 })
 
 
-test('only received purchases with a purchase invoice are synchronized, once', async () => {
+test('Solo se sincronizan una vez las compras recibidas que tienen factura de compra', async () => {
   const states = [{ estadoordencompra_id: 7, nombre: 'Recibida' }, { estadoordencompra_id: 9, nombre: 'Contabilizado' }, { estadoordencompra_id: 2, nombre: 'Pendiente' }]
   const orders = [orden, { ...orden, ordencompra_id: 42 }, { ...orden, ordencompra_id: 43, estado: 2 }, { ...orden, ordencompra_id: 44, estado: 9 }]
   let patches = 0
@@ -224,7 +233,7 @@ test('only received purchases with a purchase invoice are synchronized, once', a
   assert.equal(patches, 1)
 })
 
-test('failed invoice lookup never changes purchase states', async () => {
+test('Una consulta fallida de facturas no cambia los estados de compra', async () => {
   handler = config => {
     assert.equal(config.method, 'get')
     if (config.url === '/contabilidad/facturas/') throw new Error('No disponible')
@@ -233,7 +242,7 @@ test('failed invoice lookup never changes purchase states', async () => {
   await assert.rejects(compras.sincronizarComprasFacturadas(), /No disponible/)
 })
 
-test('API rejection preserves real order state and allows retry', async () => {
+test('El rechazo de la API conserva el estado real de la orden y permite reintentar', async () => {
   let reject = true
   handler = config => {
     if (config.method === 'patch') {
@@ -256,8 +265,8 @@ test('API rejection preserves real order state and allows retry', async () => {
 })
 
 
-test('supplier contact filters reject disallowed characters and validate email structure', async () => {
-  const v = await import(moduleURL('../src/utils/validacionesCompras.ts'))
+test('Los filtros de contacto excluyen caracteres no permitidos y validan el email', async () => {
+  const v = await import('../src/utils/validacionesCompras.ts')
   assert.equal(v.filtrarContactoProveedor('ab20-44215209-9 /😀', 'cuit'), '20-44215209-9')
   assert.equal(v.filtrarContactoProveedor('+54 (11) 1234-5678.abc', 'telefono'), '+541112345678')
   assert.equal(v.filtrarContactoProveedor('nombre+ventas @empresa.com <>😀', 'email'), 'nombre+ventas@empresa.com')
@@ -274,5 +283,17 @@ test('supplier contact filters reject disallowed characters and validate email s
   for (const telefono of ['+541112345678', '01112345678', '+1234567890123', '12345678901234']) assert.equal(v.validarProveedor({ ...base, telefono }, [5]), '')
   for (const telefono of ['123456789012345', '+12345678901234', '+', '++54', '54+11', '11.5', '-11', '11 22', '(11)', '11a']) {
     assert.notEqual(v.validarProveedor({ ...base, telefono }, [5]), '', telefono)
+  }
+})
+
+
+test('Los límites de contacto exigen 11 dígitos de CUIT y hasta 14 caracteres de teléfono', async () => {
+  const v = await import('../src/utils/validacionesCompras.ts')
+  const base = { nombre: 'Proveedor', apellido: 'SA', cuit: '20442152099', email: '', telefono: '', direccion: '', productos: [5] }
+  for (const largo of [10, 11, 12]) {
+    assert.equal(v.validarProveedor({ ...base, cuit: '1'.repeat(largo) }, [5]) === '', largo === 11)
+  }
+  for (const largo of [13, 14, 15]) {
+    assert.equal(v.validarProveedor({ ...base, telefono: '+' + '1'.repeat(largo - 1) }, [5]) === '', largo <= 14)
   }
 })
