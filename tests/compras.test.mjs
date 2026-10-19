@@ -147,7 +147,7 @@ test('legacy supplier product IDs remain selectable with catalog prices', async 
 
 test('supplier validation normalizes whitespace and checks fields and catalog membership', async () => {
   const v = await import(moduleURL('../src/utils/validacionesCompras.ts'))
-  const base = { nombre: '  Materiales    Sur  ', apellido: ' SA ', cuit: '20-44215209-9', email: ' contacto@example.com ', telefono: ' +54  11 1234-5678 ', direccion: ' Calle   12 ', productos: [5] }
+  const base = { nombre: '  Materiales    Sur  ', apellido: ' SA ', cuit: '20-44215209-9', email: ' contacto@example.com ', telefono: ' +541112345678 ', direccion: ' Calle   12 ', productos: [5] }
   const valid = v.normalizarProveedor(base)
   assert.equal(valid.nombre, 'Materiales Sur')
   assert.equal(valid.email, 'contacto@example.com')
@@ -253,4 +253,26 @@ test('API rejection preserves real order state and allows retry', async () => {
   const retried = await compras.sincronizarComprasFacturadas()
   assert.equal(retried.ordenes[0].estado, 9)
   assert.deepEqual(retried.errores, [])
+})
+
+
+test('supplier contact filters reject disallowed characters and validate email structure', async () => {
+  const v = await import(moduleURL('../src/utils/validacionesCompras.ts'))
+  assert.equal(v.filtrarContactoProveedor('ab20-44215209-9 /😀', 'cuit'), '20-44215209-9')
+  assert.equal(v.filtrarContactoProveedor('+54 (11) 1234-5678.abc', 'telefono'), '+541112345678')
+  assert.equal(v.filtrarContactoProveedor('nombre+ventas @empresa.com <>😀', 'email'), 'nombre+ventas@empresa.com')
+  assert.equal(v.filtrarContactoProveedor('++54+11', 'telefono'), '+5411')
+  assert.equal(v.filtrarContactoProveedor('54+11', 'telefono'), '5411')
+  assert.equal(v.filtrarContactoProveedor('+123456789012345', 'telefono'), '+1234567890123')
+  const base = { nombre: 'Proveedor', apellido: 'SA', cuit: '20442152099', email: '', telefono: '', direccion: '', productos: [5] }
+  for (const email of ['nombre+ventas@empresa.com', 'a.b@sub.empresa.com', "o'connor@empresa.com"]) {
+    assert.equal(v.validarProveedor({ ...base, email }, [5]), '')
+  }
+  for (const email of ['sin-arroba.com', 'a@@empresa.com', '@empresa.com', 'a@', 'a..b@empresa.com', '.a@empresa.com', 'a@-empresa.com', 'a@empresa..com', 'a@empresa_com.com', 'a<b@empresa.com']) {
+    assert.notEqual(v.validarProveedor({ ...base, email }, [5]), '', email)
+  }
+  for (const telefono of ['+541112345678', '01112345678', '+1234567890123', '12345678901234']) assert.equal(v.validarProveedor({ ...base, telefono }, [5]), '')
+  for (const telefono of ['123456789012345', '+12345678901234', '+', '++54', '54+11', '11.5', '-11', '11 22', '(11)', '11a']) {
+    assert.notEqual(v.validarProveedor({ ...base, telefono }, [5]), '', telefono)
+  }
 })

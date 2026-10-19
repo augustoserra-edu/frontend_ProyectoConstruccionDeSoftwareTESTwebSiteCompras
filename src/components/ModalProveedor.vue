@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, ref, watch } from 'vue'
-import { importeValido, normalizarProveedor, validarProveedor } from '../utils/validacionesCompras'
+import { filtrarContactoProveedor, type CampoContactoProveedor, importeValido, normalizarProveedor, validarProveedor } from '../utils/validacionesCompras'
 import type { Proveedor, NuevoProveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
 
@@ -46,14 +46,14 @@ function cerrarModal() {
   if (!props.guardando) emit('cerrar')
 }
 
-function quitarEspacios(evento: Event) {
+function filtrarContacto(evento: Event, tipo: CampoContactoProveedor) {
   if ((evento as InputEvent).isComposing) return
   const campo = evento.target as HTMLInputElement
   const original = campo.value
   const cursor = campo.selectionStart
-  campo.value = original.replace(/[\s\u200B-\u200D\uFEFF]/g, '')
+  campo.value = filtrarContactoProveedor(original, tipo)
   if (cursor !== null && campo.value !== original) {
-    const posicion = original.slice(0, cursor).replace(/[\s\u200B-\u200D\uFEFF]/g, '').length
+    const posicion = filtrarContactoProveedor(original.slice(0, cursor), tipo).length
     campo.setSelectionRange(posicion, posicion)
   }
 }
@@ -138,7 +138,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">CUIT *</label>
-                  <input @input.capture="quitarEspacios"
+                  <input @input.capture="filtrarContacto($event, 'cuit')"
                     v-model="formulario.cuit"
                     type="text"
                     maxlength="13"
@@ -152,7 +152,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Email</label>
-                  <input @input.capture="quitarEspacios"
+                  <input @input.capture="filtrarContacto($event, 'email')"
                     v-model="formulario.email" maxlength="150"
                     type="email"
                     class="form-control custom-input"
@@ -162,15 +162,15 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Teléfono</label>
-                  <input @input.capture="quitarEspacios"
+                  <input @input.capture="filtrarContacto($event, 'telefono')"
                     v-model="formulario.telefono"
                     type="tel"
-                    maxlength="50"
+                    maxlength="14"
                     aria-describedby="proveedor-telefono-ayuda"
                     class="form-control custom-input"
-                    placeholder="011-1234-5678"
+                    placeholder="+541112345678"
                   />
-                  <small id="proveedor-telefono-ayuda" class="text-muted">Máximo 50 caracteres.</small>
+                  <small id="proveedor-telefono-ayuda" class="text-muted">Solo números y un signo + opcional al inicio. Máximo 14 caracteres, incluido el +.</small>
                 </div>
 
                 <div class="col-md-6">
