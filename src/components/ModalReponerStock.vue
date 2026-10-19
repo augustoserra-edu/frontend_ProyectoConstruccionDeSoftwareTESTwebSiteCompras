@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { Producto } from '../types/producto'
-import {
-  obtenerProveedores,
-  type ProveedorAPI
-} from '../services/comprasService'
-import { mensajeErrorApi } from '../utils/erroresApi'
+import { obtenerProveedores } from '../services/proveedoresService'
+import type { Proveedor } from '../types/proveedor'
 
 const props = defineProps<{
   mostrar: boolean
@@ -23,14 +20,18 @@ const emit = defineEmits<{
   }): void
 }>()
 
-const proveedores = ref<ProveedorAPI[]>([])
+const proveedores = ref<Proveedor[]>([])
 const cargandoProveedores = ref(false)
 const proveedorSeleccionadoId = ref<number | ''>('')
 const cantidad = ref<number>(1)
 const observacion = ref<string>('')
 const errorValidacion = ref<string>('')
 
-// Al abrir el modal, consulta proveedores y filtra por el producto actual
+const prodId = computed(() => {
+  if (!props.producto) return 0
+  return Number(props.producto.id ?? props.producto.producto_id)
+})
+
 watch(() => props.mostrar, async (abierto) => {
   if (abierto && props.producto) {
     cantidad.value = 1
@@ -41,24 +42,46 @@ watch(() => props.mostrar, async (abierto) => {
     cargandoProveedores.value = true
     try {
       const lista = await obtenerProveedores()
-      const prodId = props.producto.id ?? props.producto.producto_id
+      const targetId = prodId.value
       
-      // Filtra proveedores que suministran este producto
       proveedores.value = lista.filter(prov => 
-        Array.isArray(prov.productos) && prov.productos.includes(prodId)
+        Array.isArray(prov.productos) && prov.productos.includes(targetId)
       )
 
-      // Si existe un único proveedor asignado, se autoselecciona
       if (proveedores.value.length === 1) {
         proveedorSeleccionadoId.value = proveedores.value[0].proveedor_id
       }
     } catch (error) {
-      errorValidacion.value = mensajeErrorApi(error)
+      console.error('Error cargando proveedores:', error)
       proveedores.value = []
     } finally {
       cargandoProveedores.value = false
     }
   }
+})
+
+const proveedorActual = computed(() => {
+  if (!proveedorSeleccionadoId.value) return null
+  return proveedores.value.find(p => p.proveedor_id === Number(proveedorSeleccionadoId.value)) || null
+})
+
+// Obtiene el precio del proveedor según la tabla intermedia
+const precioUnitarioProveedor = computed<number>(() => {
+  if (!proveedorActual.value || !prodId.value) return 0
+  const precioPactado = (proveedorActual.value as any).preciosCompra?.[prodId.value]
+  if (precioPactado != null && !isNaN(Number(precioPactado))) {
+    return Number(precioPactado)
+  }
+  // Fallback de compatibilidad con precio general del catálogo
+  const fallback = typeof props.producto?.precio === 'string'
+    ? parseFloat(props.producto.precio)
+    : (props.producto?.precio ?? props.producto?.preciounitario ?? 0)
+  return Number(fallback) || 0
+})
+
+const totalCalculado = computed(() => {
+  const cant = Number(cantidad.value) || 0
+  return Math.round(cant * precioUnitarioProveedor.value * 100) / 100
 })
 
 const stockFinal = computed(() => {
@@ -85,16 +108,16 @@ function guardar() {
     return
   }
 
-  const prodId = props.producto.id ?? props.producto.producto_id
-  const precioUnitario = typeof props.producto.precio === 'string'
-    ? parseFloat(props.producto.precio)
-    : (props.producto.precio ?? props.producto.preciounitario ?? 0)
+  if (precioUnitarioProveedor.value <= 0) {
+    errorValidacion.value = 'El proveedor seleccionado no tiene un precio de compra configurado para este producto.'
+    return
+  }
 
   emit('confirmar', {
-    producto_id: prodId,
+    producto_id: prodId.value,
     proveedor_id: Number(proveedorSeleccionadoId.value),
     cantidad: Number(cantidad.value),
-    precio_unitario: precioUnitario,
+    precio_unitario: precioUnitarioProveedor.value,
     observacion: observacion.value.trim()
   })
 
@@ -124,7 +147,7 @@ function guardar() {
 
             <div class="card bg-light border-0 mb-3">
               <div class="card-body p-3">
-                <span class="badge bg-dark mb-1 font-monospace">Código #{{ producto.codigo || (producto.id ?? producto.producto_id) }}</span>
+                <span class="badge bg-dark mb-1 font-monospace">Código #{{ producto.codigo || prodId }}</span>
                 <h6 class="fw-bold mb-1 text-dark">{{ producto.nombre }}</h6>
                 <div class="d-flex justify-content-between text-muted small mt-2">
                   <span>Stock Actual: <strong>{{ producto.stockactual }}</strong> un.</span>
@@ -155,7 +178,10 @@ function guardar() {
                     :key="prov.proveedor_id"
                     :value="prov.proveedor_id"
                   >
-                    {{ prov.nombre }} {{ prov.apellido }} (CUIT: {{ prov.cuit }})
+                    {{ prov.nombre }} {{ prov.apellido }} 
+                    <template v-if="(prov as any).preciosCompra?.[prodId]">
+                      - ${{ Number((prov as any).preciosCompra[prodId]).toLocaleString('es-AR', { minimumFractionDigits: 2 }) }} / un.
+                    </template>
                   </option>
                 </select>
                 <div v-if="!cargandoProveedores && proveedores.length === 0" class="text-danger small mt-1">
@@ -163,29 +189,50 @@ function guardar() {
                 </div>
               </div>
 
-              <!-- Cantidad a ingresar -->
-              <div class="mb-3">
-                <label for="cantidadReponer" class="form-label small fw-bold text-dark">
-                  Cantidad a solicitar <span class="text-danger">*</span>
-                </label>
-                <div class="input-group">
-                  <input
-                    id="cantidadReponer"
-                    v-model.number="cantidad"
-                    type="number"
-                    min="1"
-                    step="1"
-                    class="form-control"
-                    placeholder="Ej: 50"
-                    required
-                  />
-                  <span class="input-group-text bg-white text-muted">unidades</span>
+              <!-- Detalle de Precio y Cantidad -->
+              <div class="row g-2 mb-3">
+                <div class="col-sm-6">
+                  <label for="cantidadReponer" class="form-label small fw-bold text-dark">
+                    Cantidad a solicitar <span class="text-danger">*</span>
+                  </label>
+                  <div class="input-group">
+                    <input
+                      id="cantidadReponer"
+                      v-model.number="cantidad"
+                      type="number"
+                      min="1"
+                      step="1"
+                      class="form-control"
+                      placeholder="Ej: 50"
+                      required
+                    />
+                    <span class="input-group-text bg-white text-muted">un.</span>
+                  </div>
+                </div>
+
+                <div class="col-sm-6">
+                  <label class="form-label small fw-bold text-dark">Precio de Compra</label>
+                  <div class="form-control bg-light text-muted">
+                    <span v-if="precioUnitarioProveedor > 0" class="fw-semibold text-dark">
+                      ${{ precioUnitarioProveedor.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
+                    </span>
+                    <span v-else class="text-muted small">Seleccione proveedor</span>
+                  </div>
                 </div>
               </div>
 
-              <div class="p-2 mb-3 rounded border border-warning-subtle bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
-                <span class="small fw-semibold text-dark">Stock proyectado al recibir:</span>
-                <span class="badge bg-success fs-6">{{ stockFinal }} un.</span>
+              <!-- Resumen Total Orden de Compra -->
+              <div v-if="precioUnitarioProveedor > 0" class="p-3 mb-3 rounded border border-primary-subtle bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="small text-muted">Total proyectado de la orden:</div>
+                  <div class="h5 fw-bold text-primary mb-0">
+                    ${{ totalCalculado.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
+                  </div>
+                </div>
+                <div class="text-end">
+                  <div class="small text-muted">Stock proyectado:</div>
+                  <span class="badge bg-success fs-6">{{ stockFinal }} un.</span>
+                </div>
               </div>
 
               <div class="mb-3">
@@ -206,7 +253,7 @@ function guardar() {
                 <button 
                   type="submit" 
                   class="btn btn-coralon px-4 fw-semibold"
-                  :disabled="cargandoProveedores || proveedores.length === 0"
+                  :disabled="cargandoProveedores || proveedores.length === 0 || !proveedorSeleccionadoId"
                 >
                   Generar Orden de Compra
                 </button>

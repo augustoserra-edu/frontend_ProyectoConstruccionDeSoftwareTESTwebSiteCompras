@@ -52,7 +52,7 @@ watch(
         producto_id: nuevoValor.producto_id,
         nombre: nuevoValor.nombre,
         descripcion: nuevoValor.descripcion,
-        preciounitario: nuevoValor.preciounitario,
+        preciounitario: nuevoValor.preciounitario ?? 0,
         rubro_id: nuevoValor.rubro_id,
         stockminreposicion: nuevoValor.stockminreposicion,
         stockactual: nuevoValor.stockactual,
@@ -134,7 +134,7 @@ function guardarProducto() {
                   />
                 </div>
 
-                <!-- Rubro (Desplegable con nombres en vez de input numérico) -->
+                <!-- Rubro -->
                 <div class="col-md-5">
                   <label class="form-label fw-semibold text-dark">Rubro *</label>
                   <select
@@ -154,28 +154,14 @@ function guardarProducto() {
                   <textarea
                     v-model="formulario.descripcion"
                     class="form-control custom-input"
-                    rows="2"
+                    rows="3"
                     placeholder="Detalles y especificaciones del material..."
                     required
                   ></textarea>
                 </div>
 
-                <!-- Precio Unitario -->
-                <div class="col-md-6">
-                  <label class="form-label fw-semibold text-dark">Precio Unitario ($) *</label>
-                  <input
-                    v-model.number="formulario.preciounitario"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    class="form-control custom-input"
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-
-                <!-- Stock Mínimo Reposición (Stock Actual fue removido correctamente) -->
-                <div class="col-md-6">
+                <!-- Stock Mínimo Reposición -->
+                <div class="col-md-12">
                   <label class="form-label fw-semibold text-dark">Stock Mín. Reposición *</label>
                   <input
                     v-model.number="formulario.stockminreposicion"
@@ -185,6 +171,9 @@ function guardarProducto() {
                     placeholder="0"
                     required
                   />
+                  <div class="form-text text-muted">
+                    El precio se administra directamente en base a las listas de cada proveedor asociado.
+                  </div>
                 </div>
 
               </div>

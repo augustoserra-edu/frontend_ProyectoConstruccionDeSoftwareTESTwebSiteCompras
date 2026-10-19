@@ -17,7 +17,6 @@ import ModalMovimientos from '../components/ModalMovimientos.vue'
 const listaProductos = ref<Producto[]>([])
 const listaRubros = ref<Rubro[]>([...RUBROS_MOCK])
 const filtroBusqueda = ref('')
-const productoSeleccionado = ref<Producto | null>(null)
 
 const mostrarModal = ref(false)
 const productoParaEditar = ref<Producto | null>(null)
@@ -27,7 +26,13 @@ const mensajeExito = ref('')
 
 // Modal de Movimientos
 const mostrarModalMovimientos = ref(false)
+const productoParaMovimientos = ref<Producto | null>(null)
 const movimientosProductoSeleccionado = ref<MovimientoInventario[]>([])
+
+// Modal de Confirmación de Inactivación
+const mostrarModalConfirmarBaja = ref(false)
+const productoParaInactivar = ref<Producto | null>(null)
+const procesandoBaja = ref(false)
 
 onMounted(async () => {
   const [prods, rubs] = await Promise.all([obtenerProductos(), obtenerRubros()])
@@ -54,23 +59,14 @@ const productosFiltrados = computed(() => {
   )
 })
 
-function seleccionarFila(producto: Producto) {
-  if (productoSeleccionado.value?.producto_id === producto.producto_id) {
-    productoSeleccionado.value = null
-  } else {
-    productoSeleccionado.value = producto
-  }
-}
-
 function abrirModalCrear() {
   productoParaEditar.value = null
   errorGuardado.value = ''
   mostrarModal.value = true
 }
 
-function abrirModalEditar() {
-  if (!productoSeleccionado.value) return
-  productoParaEditar.value = { ...productoSeleccionado.value }
+function abrirModalEditar(producto: Producto) {
+  productoParaEditar.value = { ...producto }
   errorGuardado.value = ''
   mostrarModal.value = true
 }
@@ -81,28 +77,44 @@ function cerrarModal() {
   productoParaEditar.value = null
 }
 
-async function verMovimientos() {
-  if (!productoSeleccionado.value) return
-  movimientosProductoSeleccionado.value = await obtenerMovimientosPorProducto(productoSeleccionado.value.producto_id)
+async function verMovimientos(producto: Producto) {
+  productoParaMovimientos.value = producto
+  movimientosProductoSeleccionado.value = await obtenerMovimientosPorProducto(producto.producto_id)
   mostrarModalMovimientos.value = true
 }
 
-async function darDeBaja() {
-  if (!productoSeleccionado.value) return
-  const id = productoSeleccionado.value.producto_id
-  const confirmacion = confirm(`¿Estás seguro de inactivar el producto "${productoSeleccionado.value.nombre}"?`)
-  if (!confirmacion) return
+// Flujo de Confirmación de Baja con Modal
+function solicitarBaja(producto: Producto) {
+  productoParaInactivar.value = producto
+  mostrarModalConfirmarBaja.value = true
+}
+
+function cancelarBaja() {
+  if (procesandoBaja.value) return
+  mostrarModalConfirmarBaja.value = false
+  productoParaInactivar.value = null
+}
+
+async function confirmarBaja() {
+  if (!productoParaInactivar.value) return
+  procesandoBaja.value = true
+  const id = productoParaInactivar.value.producto_id
 
   try {
     await inactivarProducto(id)
     const idx = listaProductos.value.findIndex(p => p.producto_id === id)
     if (idx !== -1) listaProductos.value[idx].activo = false
-    productoSeleccionado.value = null
-    mensajeExito.value = 'Producto inactivado correctamente.'
+    mensajeExito.value = `El producto "${productoParaInactivar.value.nombre}" fue inactivado correctamente.`
+    cancelarBaja()
   } catch (error) {
-    mensajeExito.value = ''
     alert(mensajeErrorApi(error))
+  } finally {
+    procesandoBaja.value = false
   }
+
+  setTimeout(() => {
+    mensajeExito.value = ''
+  }, 4000)
 }
 
 async function guardarProducto(datos: any) {
@@ -116,7 +128,6 @@ async function guardarProducto(datos: any) {
       const idx = listaProductos.value.findIndex(p => p.producto_id === datos.producto_id)
       if (idx !== -1) {
         listaProductos.value[idx] = actualizado
-        productoSeleccionado.value = actualizado
       }
       mensajeExito.value = 'Producto actualizado correctamente.'
     } else {
@@ -130,52 +141,31 @@ async function guardarProducto(datos: any) {
   } finally {
     guardando.value = false
   }
+
+  setTimeout(() => {
+    mensajeExito.value = ''
+  }, 4000)
 }
 </script>
 
 <template>
   <div class="container-fluid p-0">
-    <!-- Header y Acciones -->
+    <!-- Header y Acción Principal -->
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
       <div>
         <h3 class="fw-bold mb-0 text-dark">Catálogo de Productos</h3>
-        <p class="text-muted small mb-0">Gestión de inventario, precios y catálogo del corralón</p>
+        <p class="text-muted small mb-0">Gestión de inventario y catálogo del corralón</p>
       </div>
 
-      <div class="d-flex flex-wrap gap-2 w-100 w-md-auto">
-        <!-- Ver Movimientos -->
+      <div class="w-100 w-md-auto">
         <button 
-          class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold flex-fill flex-md-grow-0"
-          :disabled="!productoSeleccionado"
-          @click="verMovimientos"
-        >
-          <span>👁 Ver Movimientos</span>
-        </button>
-
-        <!-- Inactivar (Baja lógica) -->
-        <button 
-          class="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold flex-fill flex-md-grow-0"
-          :disabled="!productoSeleccionado"
-          @click="darDeBaja"
-        >
-          <span>✕ Inactivar</span>
-        </button>
-
-        <!-- Botón Editar -->
-        <button 
-          class="btn btn-outline-coralon d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold flex-fill flex-md-grow-0"
-          :disabled="!productoSeleccionado"
-          @click="abrirModalEditar"
-        >
-          <span>Editar Seleccionado</span>
-        </button>
-
-        <!-- Botón Nuevo Producto -->
-        <button 
-          class="btn btn-coralon d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold flex-fill flex-md-grow-0"
+          class="btn btn-coralon d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold w-100 w-md-auto shadow-sm"
           @click="abrirModalCrear"
         >
-          <span>+ Nuevo Producto</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+          </svg>
+          <span>Nuevo Producto</span>
         </button>
       </div>
     </div>
@@ -201,7 +191,7 @@ async function guardarProducto(datos: any) {
       </div>
     </div>
 
-    <!-- Tabla Responsive -->
+    <!-- Tabla Responsive con Botones por Fila -->
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -211,23 +201,19 @@ async function guardarProducto(datos: any) {
               <th class="py-3">Producto</th>
               <th class="py-3 d-none d-md-table-cell">Descripción</th>
               <th class="py-3 d-none d-lg-table-cell">Rubro</th>
-              <th class="py-3">Precio Unit.</th>
               <th class="py-3 text-center">Stock Actual</th>
-              <th class="py-3 pe-3 text-center d-none d-sm-table-cell">Stock Mín.</th>
+              <th class="py-3 text-center d-none d-sm-table-cell">Stock Mín.</th>
+              <th class="pe-3 py-3 text-end" style="min-width: 170px;">Acciones</th>
             </tr>
           </thead>
           <tbody>
             <tr
               v-for="producto in productosFiltrados"
               :key="producto.producto_id"
-              :class="{ 'fila-seleccionada': productoSeleccionado?.producto_id === producto.producto_id }"
-              style="cursor: pointer;"
-              @click="seleccionarFila(producto)"
             >
-              <td class="ps-3 fw-bold">#{{ producto.producto_id }}</td>
+              <td class="ps-3 fw-bold font-monospace">#{{ producto.producto_id }}</td>
               <td>
                 <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
-                <!-- Muestra rubro en badge pequeñito en mobile cuando la columna se oculta -->
                 <div class="d-lg-none mt-1">
                   <span class="badge badge-rubro small">{{ obtenerNombreRubro(producto.rubro_id) }}</span>
                 </div>
@@ -240,7 +226,6 @@ async function guardarProducto(datos: any) {
                   {{ obtenerNombreRubro(producto.rubro_id) }}
                 </span>
               </td>
-              <td class="fw-bold text-dark">${{ producto.preciounitario.toLocaleString('es-AR') }}</td>
               <td class="text-center">
                 <span 
                   class="badge px-2 py-1" 
@@ -249,7 +234,37 @@ async function guardarProducto(datos: any) {
                   {{ producto.stockactual }} un.
                 </span>
               </td>
-              <td class="pe-3 text-muted text-center d-none d-sm-table-cell">{{ producto.stockminreposicion }} un.</td>
+              <td class="text-muted text-center d-none d-sm-table-cell">{{ producto.stockminreposicion }} un.</td>
+              
+              <!-- Columna de Acciones por Fila -->
+              <td class="pe-3 text-end">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Acciones de producto">
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    title="Ver Movimientos"
+                    @click="verMovimientos(producto)"
+                  >
+                    👁
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-outline-coralon"
+                    title="Editar Producto"
+                    @click="abrirModalEditar(producto)"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger"
+                    title="Inactivar Producto"
+                    @click="solicitarBaja(producto)"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </td>
             </tr>
             <tr v-if="productosFiltrados.length === 0">
               <td colspan="7" class="text-center py-5 text-muted">
@@ -261,7 +276,7 @@ async function guardarProducto(datos: any) {
       </div>
     </div>
 
-    <!-- Modales -->
+    <!-- Modal Editar / Crear Producto -->
     <ModalProducto
       :mostrar="mostrarModal"
       :producto-a-editar="productoParaEditar"
@@ -271,16 +286,74 @@ async function guardarProducto(datos: any) {
       @guardar="guardarProducto"
     />
 
+    <!-- Modal de Movimientos -->
     <ModalMovimientos
       :mostrar="mostrarModalMovimientos"
-      :producto="productoSeleccionado"
+      :producto="productoParaMovimientos"
       :movimientos="movimientosProductoSeleccionado"
       @cerrar="mostrarModalMovimientos = false"
     />
+
+    <!-- Modal de Confirmación de Inactivación -->
+    <div v-if="mostrarModalConfirmarBaja && productoParaInactivar">
+      <div class="modal-backdrop fade show"></div>
+      <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content shadow border-0 overflow-hidden">
+            <div class="modal-header bg-danger text-white px-4 py-3">
+              <h5 class="modal-title fw-bold mb-0">Confirmar Inhabilitación</h5>
+              <button 
+                type="button" 
+                class="btn-close btn-close-white" 
+                aria-label="Cerrar"
+                :disabled="procesandoBaja"
+                @click="cancelarBaja"
+              ></button>
+            </div>
+            <div class="modal-body p-4 bg-white">
+              <p class="text-dark mb-2">
+                ¿Está seguro de que desea inactivar el siguiente producto del inventario?
+              </p>
+              <div class="p-3 bg-light rounded border mb-3">
+                <div class="fw-bold text-dark fs-6">{{ productoParaInactivar.nombre }}</div>
+                <div class="text-muted small">ID: #{{ productoParaInactivar.producto_id }} | Rubro: {{ obtenerNombreRubro(productoParaInactivar.rubro_id) }}</div>
+              </div>
+              <p class="text-muted small mb-0">
+                El producto dejará de estar visible en el catálogo activo para ventas y pedidos.
+              </p>
+            </div>
+            <div class="modal-footer bg-light px-4 py-3 border-top">
+              <button 
+                type="button" 
+                class="btn btn-secondary px-3" 
+                :disabled="procesandoBaja"
+                @click="cancelarBaja"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-danger px-4 fw-semibold" 
+                :disabled="procesandoBaja"
+                @click="confirmarBaja"
+              >
+                <span v-if="procesandoBaja" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                Inactivar Producto
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <style scoped>
+.modal-backdrop {
+  opacity: 0.6;
+}
+
 .btn-coralon {
   background-color: #b33e14;
   border-color: #b33e14;
@@ -292,6 +365,7 @@ async function guardarProducto(datos: any) {
   border-color: #ff7a45;
   color: #ffffff;
 }
+
 .btn-outline-coralon {
   border: 1px solid #b33e14;
   color: #b33e14;
@@ -302,10 +376,7 @@ async function guardarProducto(datos: any) {
   background-color: #b33e14;
   color: #ffffff;
 }
-.btn-outline-coralon:disabled {
-  border-color: #d1cfcc;
-  color: #a8a5a0;
-}
+
 .table-dark-custom {
   background-color: #231f1d;
   color: #f5f5f5;
@@ -317,17 +388,11 @@ async function guardarProducto(datos: any) {
   font-weight: 600;
   font-size: 0.88rem;
 }
+
 .badge-rubro {
   background-color: #332d2a;
   color: #c9881e;
   font-weight: 500;
   padding: 0.4em 0.6em;
-}
-.fila-seleccionada {
-  background-color: #fff1eb !important;
-  border-left: 4px solid #b33e14;
-}
-.fila-seleccionada td {
-  background-color: #fff1eb !important;
 }
 </style>
