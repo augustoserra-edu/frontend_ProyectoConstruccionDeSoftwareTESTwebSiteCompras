@@ -1,30 +1,15 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import { readFileSync } from 'node:fs'
-import ts from 'typescript'
+import { test } from 'vitest'
 import axios from 'axios'
+import api from '../src/api/clienteAxios.ts'
+import * as proveedores from '../src/services/proveedoresService.ts'
 
-Object.defineProperty(globalThis, 'localStorage', { value: { getItem: () => 'token-prueba' }, configurable: true })
+localStorage.setItem('access_token', 'token-prueba')
 let handler
-axios.defaults.adapter = async config => { assert.equal(config.headers.Authorization, 'Bearer token-prueba'); return handler(config) }
-const cache = new Map()
-function moduleURL(path) {
-  if (cache.has(path)) return cache.get(path)
-  let source = readFileSync(new URL(path, import.meta.url), 'utf8').replaceAll('import.meta.env.VITE_API_BASE_URL', 'undefined')
-  source = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, removeComments: true } }).outputText
-  source = source.replace(/from ['"]([^'"]+)['"]/g, (_, name) => {
-    const url = name.startsWith('.') ? moduleURL(new URL(`${name}.ts`, new URL(path, import.meta.url)).href) : import.meta.resolve(name)
-    return `from '${url}'`
-  })
-  const url = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
-  cache.set(path, url)
-  return url
-}
-const proveedores = await import(moduleURL('../src/services/proveedoresService.ts'))
-
+api.defaults.adapter = async config => { assert.equal(config.headers.Authorization, 'Bearer token-prueba'); return handler(config) }
 const response = (config, data) => ({ config, data, status: 200, statusText: 'OK', headers: {} })
 
-test('catalogs read every page without following remote next URLs', async () => {
+test('Los catálogos consultan todas las páginas sin seguir direcciones externas', async () => {
   for (const [load, url] of [[proveedores.obtenerProveedores, '/compras/proveedores/'], [proveedores.obtenerCatalogoProductosProveedor, '/scm/productos/']]) {
     const pages = []
     const rows = url.includes('proveedores') ? [{ proveedor_id: 1, productos: [5] }, { proveedor_id: 2, productos: [5, 6] }] : [{ id: 1, nombre: 'Cemento', codigo: 'CEM', precio: 100, rubro: 1 }, { id: 2, nombre: 'Arena', codigo: 'ARE', precio: 200, rubro: 1 }]
@@ -38,7 +23,7 @@ test('catalogs read every page without following remote next URLs', async () => 
   }
 })
 
-test('legacy server records retain real associations and block incompatible writes', async () => {
+test('Los registros del formato anterior conservan sus asociaciones y bloquean escrituras incompatibles', async () => {
   handler = config => response(config, { results: [{ proveedor_id: 4, producto_id: 17 }], next: null })
   assert.deepEqual(await proveedores.obtenerProveedores(), [{ proveedor_id: 4, productos: [17] }])
   assert.equal(proveedores.relacionMultipleDisponible.value, false)
@@ -48,7 +33,7 @@ test('legacy server records retain real associations and block incompatible writ
   assert.equal(proveedores.relacionMultipleDisponible.value, true)
 })
 
-test('first supplier sends purchase prices even when the supplier list is empty', async () => {
+test('El primer proveedor envía precios de compra aunque el listado esté vacío', async () => {
   handler = config => response(config, { results: [], next: null })
   assert.deepEqual(await proveedores.obtenerProveedores(), [])
   const payload = { nombre: 'Proveedor', apellido: 'SA', cuit: '30111000111', email: '', telefono: '', direccion: '', productos: [2, 7] }
@@ -70,7 +55,7 @@ test('first supplier sends purchase prices even when the supplier list is empty'
 })
 
 
-test('supplier catalog preserves IDs and codes, normalizes API values and never substitutes mocks', async () => {
+test('El catálogo conserva identificadores y códigos, normaliza valores y no inventa productos', async () => {
   handler = config => response(config, [{ producto_id: 80, nombre: 'Producto real', codigo: 'REAL-80', precio: '12.50', rubro_nombre: 'Materiales' }])
   assert.deepEqual(await proveedores.obtenerCatalogoProductosProveedor(), [{ id: 80, nombre: 'Producto real', codigo: 'REAL-80', precio: 12.5, rubro: 'Materiales' }])
   handler = config => response(config, { results: [], next: null })
@@ -79,7 +64,7 @@ test('supplier catalog preserves IDs and codes, normalizes API values and never 
   await assert.rejects(proveedores.obtenerCatalogoProductosProveedor(), /No disponible/)
 })
 
-test('editing normalizes associated product IDs and preserves purchase prices in the API format', async () => {
+test('La edición normaliza identificadores de productos y conserva precios en el formato de la API', async () => {
   const raw = { proveedor_id: 9, productos: [{ producto_id: '2', precio_compra: '12.50' }, { producto_id: 7, precio_compra: '0.00' }] }
   handler = config => response(config, [raw])
   const [supplier] = await proveedores.obtenerProveedores()
@@ -92,7 +77,7 @@ test('editing normalizes associated product IDs and preserves purchase prices in
   }
   const saved = await proveedores.actualizarProveedor(9, { productos: supplier.productos, preciosCompra: supplier.preciosCompra })
   assert.deepEqual(saved, supplier)
-  handler = () => { assert.fail('Invalid prices must not reach the API') }
+  handler = () => { assert.fail('Los precios inválidos no deben enviarse a la API') }
   await assert.rejects(proveedores.actualizarProveedor(9, { productos: [2], preciosCompra: { 2: null } }), /precio de compra/)
   handler = config => response(config, { proveedor_id: 9, productos: ['2', 7, '2'] })
   assert.deepEqual((await proveedores.obtenerProveedorPorId(9)).productos, [2, 7])

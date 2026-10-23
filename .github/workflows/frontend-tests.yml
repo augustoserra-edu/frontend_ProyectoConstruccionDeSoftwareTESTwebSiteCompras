@@ -1,0 +1,38 @@
+name: Calidad frontend - Compras y Proveedores
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Analizar con ESLint y el plugin Vue
+        run: npm run lint
+      - name: Pruebas y cobertura mínima del 80 por ciento
+        run: npm test
+      - name: Compilar frontend
+        run: npm run build
+      - name: Guardar evidencia incluso si una prueba falla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-frontend-${{ github.run_number }}
+          path: |
+            logs/
+            reports/
+            coverage/
+          retention-days: 30

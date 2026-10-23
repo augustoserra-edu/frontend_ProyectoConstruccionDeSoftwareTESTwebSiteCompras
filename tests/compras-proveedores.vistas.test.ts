@@ -1,0 +1,167 @@
+import { test, expect, vi, beforeEach } from 'vitest'
+import { shallowMount, flushPromises } from '@vue/test-utils'
+import ProveedoresView from '../src/views/ProveedoresView.vue'
+import OrdenesDeCompras from '../src/views/OrdenesDeCompras.vue'
+import * as proveedores from '../src/services/proveedoresService'
+import * as compras from '../src/services/comprasService'
+
+vi.mock('../src/services/proveedoresService', async importOriginal => ({
+  ...await importOriginal<typeof proveedores>(),
+  obtenerProveedores: vi.fn(), obtenerCatalogoProductosProveedor: vi.fn(),
+  crearProveedor: vi.fn(), actualizarProveedor: vi.fn()
+}))
+vi.mock('../src/services/comprasService', async importOriginal => ({
+  ...await importOriginal<typeof compras>(),
+  obtenerOrdenesCompra: vi.fn(), obtenerEstadosCompra: vi.fn(), obtenerProveedores: vi.fn(),
+  sincronizarComprasFacturadas: vi.fn(), crearOrdenCompra: vi.fn(), editarOrdenCompra: vi.fn(), actualizarEstadoCompra: vi.fn()
+}))
+const proveedor = { proveedor_id: 1, nombre: 'Materiales', apellido: 'Sur', cuit: '20442152099', email: 'a@empresa.com', telefono: '', direccion: '', productos: [5], preciosCompra: { 5: 10 } }
+const catalogo = [proveedor, { ...proveedor, proveedor_id: 2, nombre: 'Arena', cuit: '30111000111' }]
+const estados = ['Pendiente', 'Aprobada', 'Rechazada', 'Recibida', 'Devuelto', 'Contabilizado'].map((nombre, i) => ({ nombre, estadoordencompra_id: i + 1 }))
+const orden = { ordencompra_id: 1, proveedor: 1, estado: 1, fecha: '2026-10-01', total: '20.00', detalles: [{ ordencompradetalle_id: 1, producto_id: 5, cantidad: 2, precio_unitario: '10.00' }] }
+const datosOrden = { cabecera: { proveedor_id: 1, fecha: '2026-10-01', total: 20 }, detalles: [{ producto_id: 5, cantidad: 2, preciounitario: 10 }] }
+const boton = (w: ReturnType<typeof shallowMount>, texto: string) => w.findAll('button').find(b => b.text().includes(texto))!
+beforeEach(() => {
+  vi.resetAllMocks()
+  proveedores.relacionMultipleDisponible.value = true
+  vi.mocked(proveedores.obtenerProveedores).mockImplementation(async () => structuredClone(catalogo))
+  vi.mocked(compras.obtenerProveedores).mockImplementation(async () => structuredClone(catalogo))
+  vi.mocked(proveedores.obtenerCatalogoProductosProveedor).mockResolvedValue([{ id: 5, nombre: 'Cemento', precio: 100 }])
+  vi.mocked(compras.obtenerEstadosCompra).mockResolvedValue(estados)
+  vi.mocked(compras.obtenerOrdenesCompra).mockResolvedValue([{ ...orden }])
+  vi.mocked(compras.sincronizarComprasFacturadas).mockResolvedValue({ ordenes: [{ ...orden }], facturas: [], errores: [] })
+})
+
+test('CP-P06: vista lista, ordena, filtra y permite crear/editar proveedor', async () => {
+  const w = shallowMount(ProveedoresView)
+  await flushPromises()
+  expect(w.findAll('tbody tr')).toHaveLength(2)
+  for (const columna of w.findAll('th button')) { await columna.trigger('click'); await columna.trigger('click') }
+  await w.get('input[placeholder^="Buscar por Nombre"]').setValue('Cemento')
+  expect(w.findAll('tbody tr')).toHaveLength(2)
+  await w.get('input[placeholder^="Buscar por Nombre"]').setValue('inexistente')
+  expect(w.text()).toContain('No se encontraron proveedores')
+  await w.get('input[placeholder^="Buscar por Nombre"]').setValue('')
+  await boton(w, 'Nuevo Proveedor').trigger('click')
+  await flushPromises()
+  const modal = w.findComponent({ name: 'ModalProveedor' })
+  expect(modal.props('mostrar')).toBe(true)
+  vi.mocked(proveedores.crearProveedor).mockResolvedValue({ ...proveedor, proveedor_id: 3, cuit: '20999999991' })
+  modal.vm.$emit('guardar', { ...proveedor, cuit: '20999999991' })
+  await flushPromises()
+  expect(w.text()).toContain('Proveedor creado correctamente')
+  await w.get('[aria-label="Editar proveedor Materiales Sur"]').trigger('click')
+  expect(modal.props('mostrar')).toBe(true)
+  const editado = modal.props('proveedorAEditar')
+  vi.mocked(proveedores.actualizarProveedor).mockResolvedValue({ ...editado, nombre: 'Nuevo nombre' })
+  modal.vm.$emit('guardar', { ...editado, nombre: 'Nuevo nombre' })
+  await flushPromises()
+  expect(w.text()).toContain('Proveedor actualizado correctamente')
+  expect(w.text()).toContain('Nuevo nombre')
+  modal.vm.$emit('cerrar')
+  await flushPromises()
+  expect(modal.props('mostrar')).toBe(false)
+})
+
+test('CP-P07: CUIT duplicado bloquea la API; errores se muestran y permiten reintentar', async () => {
+  vi.mocked(proveedores.obtenerProveedores).mockRejectedValueOnce(new Error('Sin conexión'))
+  const w = shallowMount(ProveedoresView)
+  await flushPromises()
+  expect(w.text()).toContain('Sin conexión')
+  await boton(w, 'Reintentar').trigger('click')
+  await flushPromises()
+  await boton(w, 'Nuevo Proveedor').trigger('click')
+  await flushPromises()
+  const modal = w.findComponent({ name: 'ModalProveedor' })
+  modal.vm.$emit('guardar', proveedor)
+  await flushPromises()
+  expect(proveedores.crearProveedor).not.toHaveBeenCalled()
+  expect(modal.props('error')).toContain('Ya existe')
+  vi.mocked(proveedores.crearProveedor).mockRejectedValueOnce(new Error('Error al guardar'))
+  modal.vm.$emit('guardar', { ...proveedor, cuit: '20999999991' })
+  await flushPromises()
+  expect(modal.props('error')).toBe('Error al guardar')
+  expect(modal.props('mostrar')).toBe(true)
+})
+
+test('CP-C05: listado de compras ordena, filtra, pagina y abre detalle', async () => {
+  const ordenes = Array.from({ length: 21 }, (_, i) => ({ ...orden, ordencompra_id: i + 1, proveedor: i % 2 + 1, fecha: i === 0 ? 'invalida' : '2026-10-01' }))
+  vi.mocked(compras.obtenerOrdenesCompra).mockResolvedValue(ordenes)
+  vi.mocked(compras.sincronizarComprasFacturadas).mockResolvedValue({ ordenes, facturas: [], errores: [] })
+  const w = shallowMount(OrdenesDeCompras)
+  await flushPromises()
+  expect(w.text()).toContain('Mostrando 20 de 21')
+  await boton(w, 'Cargar más').trigger('click')
+  expect(w.text()).toContain('Mostrando 21 de 21')
+  for (const columna of w.findAll('th button')) { await columna.trigger('click'); await columna.trigger('click') }
+  await w.get('#estado-orden').setValue('recibida')
+  expect(w.text()).toContain('No hay órdenes que coincidan')
+  await w.get('#estado-orden').setValue('')
+  await w.get('#buscar-orden').setValue('inexistente')
+  expect(w.text()).toContain('No hay órdenes que coincidan')
+  await w.get('#buscar-orden').setValue('')
+  await w.get('.orden-tarjeta').trigger('click')
+  await flushPromises()
+  expect(w.findComponent({ name: 'ModalVerOrdenesCompra' }).props('mostrar')).toBe(true)
+  window.dispatchEvent(new Event('focus'))
+  await flushPromises()
+  expect(compras.obtenerOrdenesCompra).toHaveBeenCalledTimes(2)
+})
+
+test('CP-C06: crear/editar orden y confirmar o cancelar cambio de estado', async () => {
+  const w = shallowMount(OrdenesDeCompras)
+  await flushPromises()
+  await boton(w, 'Nueva orden').trigger('click')
+  await flushPromises()
+  const nueva = w.findComponent({ name: 'ModalNuevaOrdenCompra' })
+  expect(nueva.props('mostrar')).toBe(true)
+  vi.mocked(compras.crearOrdenCompra).mockResolvedValue({ ...orden, ordencompra_id: 2 })
+  nueva.vm.$emit('guardar', datosOrden)
+  await flushPromises()
+  expect(w.text()).toContain('Orden #2 creada correctamente')
+  const detalle = w.findComponent({ name: 'ModalVerOrdenesCompra' })
+  detalle.vm.$emit('editar', 1)
+  await flushPromises()
+  expect(nueva.props('ordenAEditar').ordencompra_id).toBe(1)
+  vi.mocked(compras.editarOrdenCompra).mockResolvedValue({ ...orden, total: '30.00' })
+  nueva.vm.$emit('guardar', datosOrden)
+  await flushPromises()
+  expect(w.text()).toContain('Orden #1 actualizada correctamente')
+  detalle.vm.$emit('cambiar-estado', 1, 'aprobada')
+  await flushPromises()
+  let confirmacion = w.findComponent({ name: 'ModalConfirmacion' })
+  confirmacion.vm.$emit('resolver', false)
+  await flushPromises()
+  expect(compras.actualizarEstadoCompra).not.toHaveBeenCalled()
+  detalle.vm.$emit('cambiar-estado', 1, 'aprobada')
+  await flushPromises()
+  vi.mocked(compras.actualizarEstadoCompra).mockResolvedValue({ ...orden, estado: 2 })
+  confirmacion = w.findComponent({ name: 'ModalConfirmacion' })
+  confirmacion.vm.$emit('resolver', true)
+  await flushPromises()
+  expect(compras.actualizarEstadoCompra).toHaveBeenCalledWith(1, 2)
+  expect(w.text()).toContain('Orden #1: Aprobada')
+})
+
+test('CP-C07: fallos de carga, sincronización y guardado son visibles', async () => {
+  vi.mocked(compras.obtenerOrdenesCompra).mockRejectedValueOnce(new Error('Sin conexión'))
+  const w = shallowMount(OrdenesDeCompras)
+  await flushPromises()
+  expect(w.text()).toContain('Sin conexión')
+  vi.mocked(compras.sincronizarComprasFacturadas).mockResolvedValueOnce({ ordenes: [orden], facturas: [], errores: [{ ordenId: 1, causa: new Error('Rechazado') }] })
+  await boton(w, 'Reintentar').trigger('click')
+  await flushPromises()
+  expect(w.text()).toContain('no se pudo actualizar a Contabilizado')
+  vi.mocked(compras.sincronizarComprasFacturadas).mockRejectedValueOnce(new Error('Facturas no disponibles'))
+  await boton(w, 'Reintentar').trigger('click')
+  await flushPromises()
+  expect(w.text()).toContain('Facturas no disponibles')
+  await boton(w, 'Nueva orden').trigger('click')
+  await flushPromises()
+  vi.mocked(compras.crearOrdenCompra).mockRejectedValueOnce(new Error('Orden rechazada'))
+  const nueva = w.findComponent({ name: 'ModalNuevaOrdenCompra' })
+  nueva.vm.$emit('guardar', datosOrden)
+  await flushPromises()
+  expect(nueva.props('error')).toBe('Orden rechazada')
+  expect(nueva.props('mostrar')).toBe(true)
+})
