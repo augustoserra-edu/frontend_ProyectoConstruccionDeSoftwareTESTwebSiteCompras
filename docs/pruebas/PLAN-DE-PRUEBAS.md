@@ -29,7 +29,7 @@ ejecuten en una prueba. Los tipos sin lógica no forman parte del denominador.
 | Qase: proyecto y suites por módulo (pp. 13-14) | Casos E2E y guía de carga | Diez casos cargados en dos suites; ejecución pendiente; ver QASE.md |
 | Defectos y ciclo de vida (pp. 15-16) | `REGISTRO-DE-DEFECTOS.md` | Preparado con evidencias y límites |
 | Análisis estático (pp. 17-18, la clase propone SonarCloud) | ESLint + plugin Vue + TypeScript, alternativa elegida por el equipo | Implementado; ver log del análisis |
-| Automatización (p. 2) | Workflow de GitHub Actions y logs | Configurado localmente; pendiente de push y ejecución CI |
+| Automatización (p. 2) | Workflow de GitHub Actions y logs | Ejecución CI aprobada en main; ver EVIDENCIA-LOCAL.md |
 
 ## Estrategia y ambientes
 

@@ -8,9 +8,14 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: calidad-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pruebas:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,17 +25,47 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+        id: dependencias
       - name: Analizar con ESLint y el plugin Vue
+        id: lint
         run: npm run lint
       - name: Pruebas y cobertura mínima del 80 por ciento
+        id: tests
+        if: ${{ !cancelled() && steps.dependencias.outcome == 'success' }}
         run: npm test
       - name: Compilar frontend
+        id: build
+        if: ${{ !cancelled() && steps.dependencias.outcome == 'success' }}
         run: npm run build
+      - name: Resumen de calidad
+        if: always()
+        env:
+          RESULTADO_LINT: ${{ steps.lint.outcome }}
+          RESULTADO_TESTS: ${{ steps.tests.outcome }}
+          RESULTADO_BUILD: ${{ steps.build.outcome }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, existsSync, readFileSync } from 'node:fs'
+          const filas = [
+            '## Calidad de Compras y Proveedores',
+            '| Verificación | Resultado |', '| --- | --- |',
+            `| ESLint | ${process.env.RESULTADO_LINT} |`,
+            `| Pruebas y umbral de cobertura | ${process.env.RESULTADO_TESTS} |`,
+            `| Tipos y compilación | ${process.env.RESULTADO_BUILD} |`
+          ]
+          if (existsSync('coverage/coverage-summary.json')) {
+            const { total } = JSON.parse(readFileSync('coverage/coverage-summary.json', 'utf8'))
+            filas.push('', `Cobertura de líneas: **${total.lines.pct}%**. Mínimo exigido: **80%**.`)
+          }
+          filas.push('', 'Alcance: diez archivos del frontend de Compras/Proveedores. No incluye backend ni E2E.',
+            'Descargá el artefacto de esta ejecución para consultar logs, JUnit y cobertura HTML.')
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, filas.join('\n') + '\n')
+          NODE
       - name: Guardar evidencia incluso si una prueba falla
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pruebas-frontend-${{ github.run_number }}
+          name: pruebas-frontend-${{ github.run_number }}-${{ github.run_attempt }}
           path: |
             logs/
             reports/

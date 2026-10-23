@@ -25,6 +25,23 @@ npm run test:proveedores
 Estas ejecuciones parciales incluyen las pruebas compartidas de las vistas;
 no generan cobertura. Para acreditar el porcentaje, usar siempre `npm test`.
 
+La suite compartida de paginación también se ejecuta en ambos módulos. Verifica
+catálogos vacíos, respuestas inválidas, fallos al cargar páginas posteriores y
+compatibilidad con el formato de arreglo, con Axios simulado.
+
+## GitHub Actions
+
+El workflow `.github/workflows/frontend-tests.yml` se ejecuta en cada push,
+pull request y ejecución manual. Usa Node 24 y `npm ci`, ejecuta ESLint,
+pruebas con cobertura y compilación. Aunque falle el lint, ejecuta las pruebas
+y la compilación si la instalación terminó correctamente; el job sigue fallando
+si falla cualquiera de esas verificaciones.
+
+En la pestaña **Actions**, abrir la ejecución para consultar el resumen y
+descargar el artefacto `pruebas-frontend-<corrida>-<intento>`, conservado 30 días.
+Incluye logs, JUnit y cobertura HTML. El límite por ejecución es de 15 minutos;
+un nuevo commit cancela una ejecución anterior del mismo evento y rama.
+
 ## Reportes
 
 | Archivo/carpeta | Uso |

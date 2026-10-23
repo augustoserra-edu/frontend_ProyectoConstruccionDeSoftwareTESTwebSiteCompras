@@ -30,7 +30,7 @@ Estos archivos generados son locales/artefactos CI, no están versionados; para 
 
 Esta evidencia no acredita ejecución de integración/E2E en Render ni Qase.
 Se eligió ESLint + plugin Vue como alternativa al paso de SonarCloud.
-El workflow está preparado pero no se ejecutó en GitHub durante esta tarea.
+El workflow también se ejecutó en GitHub: ver la actualización del 23/10/2026.
 
 ## Análisis estático ESLint + Vue
 
@@ -43,3 +43,19 @@ Resultado: APROBADO. Comando: npm run lint.
 La primera ejecución detectó una inicialización redundante en el ordenamiento de
 Compras. Se corrigió y la siguiente ejecución no reportó hallazgos. Esto no
 certifica ausencia de vulnerabilidades ni reemplaza la verificación manual.
+
+## Actualización del 23/10/2026
+
+Se confirmó una ejecución aprobada de GitHub Actions en main, revisión
+`ca0645bf4aa79b1a5ad79043c46b0813965aca62`:
+[ejecución 39974137237](https://github.com/augustoserra-edu/frontend_ProyectoConstruccionDeSoftwareTESTwebSiteCompras/actions/runs/39974137237).
+
+Sobre esa base se agregaron cinco casos aislados de paginación: dos formatos
+de catálogo vacío, respuesta inválida, fallo en segunda página y última página
+en formato de arreglo. La verificación local `npm run check` aprobó 44 pruebas,
+ESLint sin errores ni advertencias y compilación. Cobertura de líneas: 93.85%
+(703/749), limitada a los diez archivos de Compras/Proveedores.
+
+El workflow incorpora resumen, límite de tiempo, cancelación de ejecuciones
+anteriores y verificación de pruebas/build aunque falle lint. Los resultados
+de estas mejoras se consultan en Actions para la rama `codex/unitarias-actions`.
