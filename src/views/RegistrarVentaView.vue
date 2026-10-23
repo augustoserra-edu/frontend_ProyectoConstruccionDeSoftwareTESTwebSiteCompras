@@ -9,6 +9,7 @@ import {
   crearOrdenVenta,
   textoError,
 } from '../services/ventasService'
+import { avisoError, avisoExito } from '../utils/avisos'
 
 // --- Datos que vienen del backend ---
 const clientesRegistrados = ref<Cliente[]>([])
@@ -53,7 +54,7 @@ async function buscarCliente() {
   } catch (err) {
     console.error(err)
     clienteEncontrado.value = null
-    alert(textoError(err))
+    avisoError(textoError(err), 'No se pudo buscar el cliente')
   }
 }
 
@@ -128,15 +129,15 @@ const guardando = ref(false)
 
 async function generarOrdenVenta() {
   if (!clienteEncontrado.value) {
-    alert('Error: debe seleccionar un cliente para generar la orden de venta.')
+    avisoError('Debe seleccionar un cliente para generar la orden de venta.', 'Faltan datos')
     return
   }
   if (clienteEncontrado.value.estado !== 'Activo') {
-    alert('Error: el cliente está dado de baja y no se le puede generar una orden de venta.')
+    avisoError('El cliente está dado de baja y no se le puede generar una orden de venta.', 'Cliente dado de baja')
     return
   }
   if (items.value.length === 0) {
-    alert('Error: debe agregar al menos un producto a la orden de venta.')
+    avisoError('Debe agregar al menos un producto a la orden de venta.', 'Faltan datos')
     return
   }
 
@@ -151,9 +152,11 @@ async function generarOrdenVenta() {
       tipoComprobante: tipoComprobante.value,
       items: items.value.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad })),
     })
-    alert(
-      `Orden de venta N° ${orden.id} generada. Total $${orden.total.toLocaleString('es-AR')}.\n` +
+    avisoExito(
+      `Orden de venta N° ${orden.id} generada.\n` +
+        `Total: $${orden.total.toLocaleString('es-AR')}\n` +
         'Estado: En proceso. Finanzas la factura desde su sector.',
+      'Orden de venta creada',
     )
 
     items.value = []
@@ -162,7 +165,7 @@ async function generarOrdenVenta() {
     await cargarDatos() // el stock cambió: se vuelve a pedir la lista de productos
   } catch (err) {
     console.error(err)
-    alert(textoError(err))
+    avisoError(textoError(err), 'No se pudo generar la orden de venta')
   } finally {
     guardando.value = false
   }

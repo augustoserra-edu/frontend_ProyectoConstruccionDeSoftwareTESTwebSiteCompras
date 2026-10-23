@@ -10,6 +10,7 @@ import CargarStockView from './views/CargarStockView.vue'
 import ClientesView from './views/ClientesView.vue'
 import RegistrarVentaView from './views/RegistrarVentaView.vue'
 import DevolucionesView from './views/DevolucionesView.vue'
+import AvisoPopup from './components/AvisoPopup.vue'
 import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
 import FinanzasCierreView from './views/FinanzasCierreView.vue'
 import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
@@ -165,6 +166,9 @@ const accionesSidebar = computed<{
       </main>
     </div>
   </div>
+
+  <!-- Avisos (pop up) que reemplazan al alert() del navegador -->
+  <AvisoPopup />
 </template>
 
 <style scoped>

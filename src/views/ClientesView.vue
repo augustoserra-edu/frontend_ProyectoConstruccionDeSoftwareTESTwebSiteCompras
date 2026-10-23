@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { type Cliente, type NuevoCliente } from '../types/cliente'
 import { obtenerClientes, crearCliente, actualizarCliente, textoError } from '../services/ventasService'
 import ModalCliente from '../components/ModalCliente.vue'
+import { avisoError } from '../utils/avisos'
 
 const listaClientes = ref<Cliente[]>([])
 const cargando = ref(false)
@@ -81,7 +82,7 @@ async function guardarCliente(datos: Cliente | NuevoCliente) {
     cerrarModal()
   } catch (err) {
     console.error(err)
-    alert(textoError(err))
+    avisoError(textoError(err), 'No se pudo guardar el cliente')
   }
 }
 </script>
