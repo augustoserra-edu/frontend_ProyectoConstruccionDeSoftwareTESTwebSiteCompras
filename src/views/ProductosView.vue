@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { Producto, MovimientoInventario } from '../types/producto'
-import { RUBROS_MOCK, type Rubro } from '../types/rubro'
+import type { Rubro } from '../types/rubro'
 import {
   obtenerProductos,
   crearProducto,
@@ -11,36 +11,51 @@ import {
 } from '../services/productosService'
 import { obtenerRubros } from '../services/rubrosService'
 import { mensajeErrorApi } from '../utils/erroresApi'
+import { alerta } from '../utils/alertas'
 import ModalProducto from '../components/ModalProducto.vue'
 import ModalMovimientos from '../components/ModalMovimientos.vue'
 
 const listaProductos = ref<Producto[]>([])
-const listaRubros = ref<Rubro[]>([...RUBROS_MOCK])
+const listaRubros = ref<Rubro[]>([])
 const filtroBusqueda = ref('')
+const cargando = ref(false)
+const errorCarga = ref('')
 
 const mostrarModal = ref(false)
 const productoParaEditar = ref<Producto | null>(null)
 const guardando = ref(false)
 const errorGuardado = ref('')
-const mensajeExito = ref('')
 
 // Modal de Movimientos
 const mostrarModalMovimientos = ref(false)
 const productoParaMovimientos = ref<Producto | null>(null)
 const movimientosProductoSeleccionado = ref<MovimientoInventario[]>([])
 
-// Modal de Confirmación de Inactivación
-const mostrarModalConfirmarBaja = ref(false)
-const productoParaInactivar = ref<Producto | null>(null)
-const procesandoBaja = ref(false)
+async function cargarDatos() {
+  cargando.value = true
+  errorCarga.value = ''
+  try {
+    const [prods, rubs] = await Promise.all([
+      obtenerProductos(),
+      obtenerRubros().catch(() => [] as Rubro[])
+    ])
+    listaProductos.value = prods
+    listaRubros.value = rubs
+  } catch {
+    listaProductos.value = []
+    listaRubros.value = []
+    errorCarga.value = 'No se pudo conectar con el servidor o cargar los datos. Verifique que el servicio esté disponible.'
+  } finally {
+    cargando.value = false
+  }
+}
 
-onMounted(async () => {
-  const [prods, rubs] = await Promise.all([obtenerProductos(), obtenerRubros()])
-  listaProductos.value = prods
-  listaRubros.value = rubs
+onMounted(() => {
+  cargarDatos()
 })
 
-function obtenerNombreRubro(rubroId: number): string {
+function obtenerNombreRubro(rubroId: number, rubroNombre?: string): string {
+  if (rubroNombre) return rubroNombre
   const r = listaRubros.value.find(item => item.rubro_id === rubroId)
   return r ? r.nombre : `Rubro #${rubroId}`
 }
@@ -55,7 +70,7 @@ const productosFiltrados = computed(() => {
   return productosActivos.filter((p) =>
     p.nombre.toLowerCase().includes(busqueda) ||
     p.descripcion.toLowerCase().includes(busqueda) ||
-    obtenerNombreRubro(p.rubro_id).toLowerCase().includes(busqueda)
+    obtenerNombreRubro(p.rubro_id, p.rubro_nombre).toLowerCase().includes(busqueda)
   )
 })
 
@@ -79,49 +94,40 @@ function cerrarModal() {
 
 async function verMovimientos(producto: Producto) {
   productoParaMovimientos.value = producto
-  movimientosProductoSeleccionado.value = await obtenerMovimientosPorProducto(producto.producto_id)
-  mostrarModalMovimientos.value = true
+  try {
+    movimientosProductoSeleccionado.value = await obtenerMovimientosPorProducto(producto.producto_id)
+    mostrarModalMovimientos.value = true
+  } catch (error) {
+    movimientosProductoSeleccionado.value = []
+    alerta.error('Error al cargar movimientos', mensajeErrorApi(error))
+  }
 }
 
-// Flujo de Confirmación de Baja con Modal
-function solicitarBaja(producto: Producto) {
-  productoParaInactivar.value = producto
-  mostrarModalConfirmarBaja.value = true
-}
+// Flujo de Confirmación de Baja con SweetAlert2
+async function solicitarBaja(producto: Producto) {
+  const confirmado = await alerta.confirmar(
+    '¿Confirmar inhabilitación?',
+    `¿Desea inactivar el producto "${producto.nombre}"?`,
+    'Inactivar'
+  )
+  if (!confirmado) return
 
-function cancelarBaja() {
-  if (procesandoBaja.value) return
-  mostrarModalConfirmarBaja.value = false
-  productoParaInactivar.value = null
-}
-
-async function confirmarBaja() {
-  if (!productoParaInactivar.value) return
-  procesandoBaja.value = true
-  const id = productoParaInactivar.value.producto_id
+  const id = producto.producto_id
 
   try {
     await inactivarProducto(id)
     const idx = listaProductos.value.findIndex(p => p.producto_id === id)
     if (idx !== -1) listaProductos.value[idx].activo = false
-    mensajeExito.value = `El producto "${productoParaInactivar.value.nombre}" fue inactivado correctamente.`
-    cancelarBaja()
+    alerta.exito('Producto inactivado', `El producto "${producto.nombre}" fue inactivado correctamente.`)
   } catch (error) {
-    alert(mensajeErrorApi(error))
-  } finally {
-    procesandoBaja.value = false
+    alerta.error('Error al inactivar', mensajeErrorApi(error))
   }
-
-  setTimeout(() => {
-    mensajeExito.value = ''
-  }, 4000)
 }
 
 async function guardarProducto(datos: any) {
   if (guardando.value) return
   guardando.value = true
   errorGuardado.value = ''
-  mensajeExito.value = ''
   try {
     if (datos.producto_id) {
       const actualizado = await actualizarProducto(datos.producto_id, datos)
@@ -129,22 +135,21 @@ async function guardarProducto(datos: any) {
       if (idx !== -1) {
         listaProductos.value[idx] = actualizado
       }
-      mensajeExito.value = 'Producto actualizado correctamente.'
+      cerrarModal()
+      alerta.exito('Producto actualizado', 'Producto actualizado correctamente.')
     } else {
       const nuevoProd = await crearProducto(datos)
       listaProductos.value.unshift(nuevoProd)
-      mensajeExito.value = 'Producto creado correctamente.'
+      cerrarModal()
+      alerta.exito('Producto creado', 'Producto creado correctamente.')
     }
-    cerrarModal()
   } catch (error) {
-    errorGuardado.value = mensajeErrorApi(error)
+    const msg = mensajeErrorApi(error)
+    errorGuardado.value = msg
+    alerta.error('Error al guardar producto', msg)
   } finally {
     guardando.value = false
   }
-
-  setTimeout(() => {
-    mensajeExito.value = ''
-  }, 4000)
 }
 </script>
 
@@ -170,11 +175,6 @@ async function guardarProducto(datos: any) {
       </div>
     </div>
 
-    <!-- Alertas -->
-    <div v-if="mensajeExito" class="alert alert-success py-2 small mb-3" role="status">
-      {{ mensajeExito }}
-    </div>
-
     <!-- Buscador -->
     <div class="card shadow-sm border-0 mb-4 search-card">
       <div class="card-body p-3">
@@ -189,6 +189,22 @@ async function guardarProducto(datos: any) {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Banner de error de carga -->
+    <div
+      v-if="errorCarga"
+      class="alert alert-danger d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 mb-4"
+      role="alert"
+    >
+      <span>{{ errorCarga }}</span>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-danger fw-semibold flex-shrink-0"
+        @click="cargarDatos"
+      >
+        Reintentar
+      </button>
     </div>
 
     <!-- Tabla Responsive con Botones por Fila -->
@@ -215,7 +231,7 @@ async function guardarProducto(datos: any) {
               <td>
                 <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
                 <div class="d-lg-none mt-1">
-                  <span class="badge badge-rubro small">{{ obtenerNombreRubro(producto.rubro_id) }}</span>
+                  <span class="badge badge-rubro small">{{ obtenerNombreRubro(producto.rubro_id, producto.rubro_nombre) }}</span>
                 </div>
               </td>
               <td class="text-secondary small text-truncate d-none d-md-table-cell" style="max-width: 250px;">
@@ -223,7 +239,7 @@ async function guardarProducto(datos: any) {
               </td>
               <td class="d-none d-lg-table-cell">
                 <span class="badge badge-rubro">
-                  {{ obtenerNombreRubro(producto.rubro_id) }}
+                  {{ obtenerNombreRubro(producto.rubro_id, producto.rubro_nombre) }}
                 </span>
               </td>
               <td class="text-center">
@@ -268,7 +284,8 @@ async function guardarProducto(datos: any) {
             </tr>
             <tr v-if="productosFiltrados.length === 0">
               <td colspan="7" class="text-center py-5 text-muted">
-                No se encontraron productos activos que coincidan con la búsqueda.
+                <span v-if="cargando">Cargando productos...</span>
+                <span v-else>No se encontraron productos...</span>
               </td>
             </tr>
           </tbody>
@@ -294,66 +311,10 @@ async function guardarProducto(datos: any) {
       @cerrar="mostrarModalMovimientos = false"
     />
 
-    <!-- Modal de Confirmación de Inactivación -->
-    <div v-if="mostrarModalConfirmarBaja && productoParaInactivar">
-      <div class="modal-backdrop fade show"></div>
-      <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
-        <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content shadow border-0 overflow-hidden">
-            <div class="modal-header bg-danger text-white px-4 py-3">
-              <h5 class="modal-title fw-bold mb-0">Confirmar Inhabilitación</h5>
-              <button 
-                type="button" 
-                class="btn-close btn-close-white" 
-                aria-label="Cerrar"
-                :disabled="procesandoBaja"
-                @click="cancelarBaja"
-              ></button>
-            </div>
-            <div class="modal-body p-4 bg-white">
-              <p class="text-dark mb-2">
-                ¿Está seguro de que desea inactivar el siguiente producto del inventario?
-              </p>
-              <div class="p-3 bg-light rounded border mb-3">
-                <div class="fw-bold text-dark fs-6">{{ productoParaInactivar.nombre }}</div>
-                <div class="text-muted small">ID: #{{ productoParaInactivar.producto_id }} | Rubro: {{ obtenerNombreRubro(productoParaInactivar.rubro_id) }}</div>
-              </div>
-              <p class="text-muted small mb-0">
-                El producto dejará de estar visible en el catálogo activo para ventas y pedidos.
-              </p>
-            </div>
-            <div class="modal-footer bg-light px-4 py-3 border-top">
-              <button 
-                type="button" 
-                class="btn btn-secondary px-3" 
-                :disabled="procesandoBaja"
-                @click="cancelarBaja"
-              >
-                Cancelar
-              </button>
-              <button 
-                type="button" 
-                class="btn btn-danger px-4 fw-semibold" 
-                :disabled="procesandoBaja"
-                @click="confirmarBaja"
-              >
-                <span v-if="procesandoBaja" class="spinner-border spinner-border-sm me-2" role="status"></span>
-                Inactivar Producto
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
 <style scoped>
-.modal-backdrop {
-  opacity: 0.6;
-}
-
 .btn-coralon {
   background-color: #b33e14;
   border-color: #b33e14;

@@ -3,6 +3,8 @@ import { ref, computed } from 'vue'
 import Navbar from './components/Navbar.vue'
 import SideBar, { type AccionSidebar } from './components/SideBar.vue'
 import LoginView from './views/LoginView.vue'
+import HomeView from './views/HomeView.vue'
+import ManualUsuarioView from './views/ManualUsuarioView.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
 import OrdenesDeCompras from './views/OrdenesDeCompras.vue'
 import ProductosView from './views/ProductosView.vue'
@@ -17,18 +19,20 @@ import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
 
 const estaAutenticado = ref(!!localStorage.getItem('access_token'))
 
+const moduloActivo = ref('inicio')
+const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion1')
+
 function alIniciarSesion() {
   estaAutenticado.value = true
+  moduloActivo.value = 'inicio'
 }
 
 function cerrarSesion() {
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
   estaAutenticado.value = false
+  moduloActivo.value = 'inicio'
 }
-
-const moduloActivo = ref('administrativos')
-const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion1')
 
 function cambiarModulo(nuevoModulo: string) {
   moduloActivo.value = nuevoModulo
@@ -129,6 +133,7 @@ const accionesSidebar = computed<{
     <!-- Contenedor Responsive: flex-column en mobile, flex-lg-row en desktop -->
     <div class="d-flex flex-column flex-lg-row flex-grow-1 w-100">
       <SideBar
+        v-if="moduloActivo !== 'inicio' && moduloActivo !== 'ayuda'"
         :accion1="accionesSidebar.accion1"
         :accion2="accionesSidebar.accion2"
         :accion3="accionesSidebar.accion3"
@@ -138,7 +143,15 @@ const accionesSidebar = computed<{
 
       <!-- Area Principal con min-width 0 para que la tabla contenga su scroll interno -->
       <main class="flex-grow-1 p-3 p-md-4 main-content-wrapper" style="min-width: 0;">
-        <template v-if="moduloActivo === 'finanzas'">
+        <template v-if="moduloActivo === 'inicio'">
+          <HomeView />
+        </template>
+
+        <template v-else-if="moduloActivo === 'ayuda'">
+          <ManualUsuarioView />
+        </template>
+
+        <template v-else-if="moduloActivo === 'finanzas'">
           <FinanzasFacturacionView v-if="subVistaActiva === 'opcion1'" />
           <FinanzasCierreView v-else-if="subVistaActiva === 'opcion2'" />
           <FinanzasPeriodosView v-else-if="subVistaActiva === 'opcion3'" />

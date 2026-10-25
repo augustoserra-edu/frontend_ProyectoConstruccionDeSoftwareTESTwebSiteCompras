@@ -3,8 +3,8 @@ interface Props {
   moduloActivo?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  moduloActivo: 'proveedores'
+withDefaults(defineProps<Props>(), {
+  moduloActivo: 'inicio'
 })
 
 const emit = defineEmits<{
@@ -22,7 +22,11 @@ function setModule(modulo: string) {
     <div class="container-fluid p-0">
       
       <!-- Marca / Nombre del Sistema -->
-      <a class="navbar-brand d-flex align-items-center gap-2 px-3 py-3 m-0 text-white text-uppercase fw-black letter-spacing" href="#">
+      <a
+        class="navbar-brand d-flex align-items-center gap-2 px-3 py-3 m-0 text-white text-uppercase fw-black letter-spacing"
+        href="#"
+        @click.prevent="setModule('inicio')"
+      >
         <span class="badge-logo rounded-1 d-flex align-items-center justify-content-center fw-bold">
           EC
         </span>
@@ -110,8 +114,21 @@ function setModule(modulo: string) {
 
         </ul>
 
-        <!-- Botón Cerrar Sesión (extremo derecho) -->
-        <div class="px-3 py-2 py-lg-0">
+        <!-- Acciones extremas derechas: Ayuda / Manual y Cerrar Sesión -->
+        <div class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 py-lg-0">
+          <button
+            type="button"
+            class="btn btn-help d-flex align-items-center gap-2"
+            :class="{ 'btn-help-active': moduloActivo === 'ayuda' }"
+            @click="setModule('ayuda')"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+              <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286m1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94"/>
+            </svg>
+            <span>Ayuda / Manual</span>
+          </button>
+
           <button
             class="btn btn-logout d-flex align-items-center gap-2"
             @click="emit('cerrarSesion')"
@@ -160,6 +177,27 @@ function setModule(modulo: string) {
 
 .standard-link:hover {
   background-color: #332d2a;
+  color: #ffffff !important;
+}
+
+.btn-help {
+  background-color: #2c2724;
+  border: 1px solid #5a5450;
+  color: #e0ddd8;
+  font-size: 0.875rem;
+  padding: 0.35rem 0.85rem;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.btn-help:hover {
+  background-color: #332d2a;
+  border-color: #c9881e;
+  color: #ffffff;
+}
+
+.btn-help-active {
+  background-color: #b33e14 !important;
+  border-color: #ff7a45 !important;
   color: #ffffff !important;
 }
 

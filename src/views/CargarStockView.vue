@@ -1,28 +1,29 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { PRODUCTOS_MOCK, type Producto } from '../types/producto'
+import type { Producto } from '../types/producto'
 import { obtenerProductos } from '../services/productosService'
 import { crearOrdenCompra } from '../services/comprasService'
 import { mensajeErrorApi } from '../utils/erroresApi'
+import { alerta } from '../utils/alertas'
 import ModalReponerStock from '../components/ModalReponerStock.vue'
 
 // Estado reactivo conectado
 const productos = ref<Producto[]>([])
 const cargando = ref(false)
+const errorCarga = ref('')
 const filtroBusqueda = ref('')
 const productoSeleccionado = ref<Producto | null>(null)
 const mostrarModalReponer = ref(false)
-const mensajeExito = ref('')
-const mensajeError = ref('')
 
 async function cargarListaProductos() {
   cargando.value = true
+  errorCarga.value = ''
   try {
     const data = await obtenerProductos()
     productos.value = data
-  } catch (error) {
-    console.error('Error al cargar productos desde la API:', error)
-    productos.value = [...PRODUCTOS_MOCK]
+  } catch {
+    productos.value = []
+    errorCarga.value = 'No se pudo conectar con el servidor o cargar los datos. Verifique que el servicio esté disponible.'
   } finally {
     cargando.value = false
   }
@@ -93,17 +94,15 @@ async function confirmarReposicion(datos: {
       ]
     })
 
-    mensajeExito.value = `Orden de compra creada con éxito para "${prod.nombre}" (${datos.cantidad} un.). Quedó registrada en Compras para su aprobación.`
     productoSeleccionado.value = null
     cerrarModalReponer()
+    alerta.exito(
+      'Orden de compra creada',
+      `Orden de compra creada con éxito para "${prod.nombre}" (${datos.cantidad} un.). Quedó registrada en Compras para su aprobación.`
+    )
   } catch (error) {
-    mensajeError.value = mensajeErrorApi(error)
+    alerta.error('Error al generar orden de compra', mensajeErrorApi(error))
   }
-
-  setTimeout(() => {
-    mensajeExito.value = ''
-    mensajeError.value = ''
-  }, 5000)
 }
 </script>
 
@@ -133,14 +132,6 @@ async function confirmarReposicion(datos: {
       </div>
     </div>
 
-    <!-- Alertas -->
-    <div v-if="mensajeExito" class="alert alert-success small py-2 mb-3" role="status">
-      {{ mensajeExito }}
-    </div>
-    <div v-if="mensajeError" class="alert alert-danger small py-2 mb-3" role="status">
-      {{ mensajeError }}
-    </div>
-
     <!-- Barra de búsqueda adaptada -->
     <div class="card shadow-sm border-0 mb-4 search-card">
       <div class="card-body p-3">
@@ -162,6 +153,22 @@ async function confirmarReposicion(datos: {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Banner de error de carga -->
+    <div
+      v-if="errorCarga"
+      class="alert alert-danger d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 mb-4"
+      role="alert"
+    >
+      <span>{{ errorCarga }}</span>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-danger fw-semibold flex-shrink-0"
+        @click="cargarListaProductos"
+      >
+        Reintentar
+      </button>
     </div>
 
     <!-- Tabla Principal de Stock con selección de fila y ocultamiento progresivo -->
@@ -236,7 +243,7 @@ async function confirmarReposicion(datos: {
             <tr v-if="productosFiltrados.length === 0">
               <td colspan="6" class="text-center py-4 text-muted">
                 <span v-if="cargando">Cargando productos del inventario...</span>
-                <span v-else>No se encontraron productos coincidentes.</span>
+                <span v-else>No se encontraron productos...</span>
               </td>
             </tr>
           </tbody>
