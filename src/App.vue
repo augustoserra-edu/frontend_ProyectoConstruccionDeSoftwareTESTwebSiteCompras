@@ -8,6 +8,7 @@ import ManualUsuarioView from './views/ManualUsuarioView.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
 import OrdenesDeCompras from './views/OrdenesDeCompras.vue'
 import ProductosView from './views/ProductosView.vue'
+import RubrosView from './views/RubrosView.vue'
 import CargarStockView from './views/CargarStockView.vue'
 import ClientesView from './views/ClientesView.vue'
 import RegistrarVentaView from './views/RegistrarVentaView.vue'
@@ -71,7 +72,10 @@ const accionesSidebar = computed<{
         titulo: 'Cargar Stock',
         descripcion: 'Ingreso manual de mercadería a inventario'
       },
-      accion3: undefined
+      accion3: {
+        titulo: 'ABM de Rubros',
+        descripcion: 'Alta, baja y modificación de rubros'
+      }
     }
   }
 
@@ -159,7 +163,8 @@ const accionesSidebar = computed<{
 
         <template v-else-if="moduloActivo === 'administrativos'">
           <ProductosView v-if="subVistaActiva === 'opcion1'" />
-          <CargarStockView v-else />
+          <CargarStockView v-else-if="subVistaActiva === 'opcion2'" />
+          <RubrosView v-else-if="subVistaActiva === 'opcion3'" />
         </template>
 
         <template v-else-if="moduloActivo === 'proveedores'">
