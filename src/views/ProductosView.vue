@@ -24,7 +24,6 @@ const errorCarga = ref('')
 const mostrarModal = ref(false)
 const productoParaEditar = ref<Producto | null>(null)
 const guardando = ref(false)
-const errorGuardado = ref('')
 
 // Modal de Movimientos
 const mostrarModalMovimientos = ref(false)
@@ -76,13 +75,11 @@ const productosFiltrados = computed(() => {
 
 function abrirModalCrear() {
   productoParaEditar.value = null
-  errorGuardado.value = ''
   mostrarModal.value = true
 }
 
 function abrirModalEditar(producto: Producto) {
   productoParaEditar.value = { ...producto }
-  errorGuardado.value = ''
   mostrarModal.value = true
 }
 
@@ -127,7 +124,6 @@ async function solicitarBaja(producto: Producto) {
 async function guardarProducto(datos: any) {
   if (guardando.value) return
   guardando.value = true
-  errorGuardado.value = ''
   try {
     if (datos.producto_id) {
       const actualizado = await actualizarProducto(datos.producto_id, datos)
@@ -144,9 +140,7 @@ async function guardarProducto(datos: any) {
       alerta.exito('Producto creado', 'Producto creado correctamente.')
     }
   } catch (error) {
-    const msg = mensajeErrorApi(error)
-    errorGuardado.value = msg
-    alerta.error('Error al guardar producto', msg)
+    alerta.error('Error al guardar producto', mensajeErrorApi(error))
   } finally {
     guardando.value = false
   }
@@ -298,7 +292,6 @@ async function guardarProducto(datos: any) {
       :mostrar="mostrarModal"
       :producto-a-editar="productoParaEditar"
       :guardando="guardando"
-      :error="errorGuardado"
       @cerrar="cerrarModal"
       @guardar="guardarProducto"
     />

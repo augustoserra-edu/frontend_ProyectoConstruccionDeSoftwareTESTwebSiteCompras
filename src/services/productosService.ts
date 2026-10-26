@@ -25,7 +25,6 @@ interface RespuestaProductosAPI {
 
 function mapearProductoDesdeBackend(item: any): Producto {
   const id = item.id ?? item.producto_id
-  const precioNumerico = typeof item.precio === 'string' ? parseFloat(item.precio) : (item.precio ?? item.preciounitario ?? 0)
   const rubroId = item.rubro ?? item.rubro_id ?? 0
 
   return {
@@ -34,8 +33,6 @@ function mapearProductoDesdeBackend(item: any): Producto {
     codigo: item.codigo || `ART-${id}`,
     nombre: item.nombre || '',
     descripcion: item.descripcion || '',
-    precio: precioNumerico,
-    preciounitario: precioNumerico,
     rubro: rubroId,
     rubro_id: rubroId,
     rubro_nombre: item.rubro_nombre,
@@ -62,7 +59,6 @@ export async function crearProducto(datos: NuevoProducto & { codigo?: string }):
     codigo: datos.codigo || `ART-${Date.now().toString().slice(-4)}`,
     nombre: datos.nombre,
     descripcion: datos.descripcion,
-    precio: datos.preciounitario,
     rubro: datos.rubro_id,
     stock_minimo: datos.stockminreposicion
   }
@@ -76,7 +72,6 @@ export async function actualizarProducto(id: number, datos: Partial<Producto>): 
   if (datos.codigo !== undefined) payload.codigo = datos.codigo
   if (datos.nombre !== undefined) payload.nombre = datos.nombre
   if (datos.descripcion !== undefined) payload.descripcion = datos.descripcion
-  if (datos.preciounitario !== undefined) payload.precio = datos.preciounitario
   if (datos.rubro_id !== undefined) payload.rubro = datos.rubro_id
   if (datos.stockminreposicion !== undefined) payload.stock_minimo = datos.stockminreposicion
 
@@ -116,9 +111,6 @@ export async function obtenerProductosProveedor(): Promise<ProductoProveedor[]> 
     id: p.id ?? p.producto_id,
     nombre: p.nombre,
     codigo: p.codigo,
-    precio: typeof p.precio === 'string' ? parseFloat(p.precio) : p.precio,
     rubro: p.rubro_nombre ?? p.rubro_id
   }))
 }
-
-

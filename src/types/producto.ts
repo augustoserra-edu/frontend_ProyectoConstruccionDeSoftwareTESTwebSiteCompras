@@ -6,7 +6,7 @@ export interface Producto {
   nombre: string
   descripcion: string
   precio?: number | string
-  preciounitario: number
+  preciounitario?: number
   rubro?: number
   rubro_id: number
   rubro_nombre?: string
@@ -23,13 +23,15 @@ export interface ProductoBackendInput {
   codigo: string
   nombre: string
   descripcion: string
-  precio: number | string
   rubro: number
   stock_minimo: number
 }
 
 // Tipo para creación de producto en frontend
-export type NuevoProducto = Omit<Producto, 'producto_id' | 'id' | 'stockactual' | 'stock_actual' | 'activo'>
+export type NuevoProducto = Omit<
+  Producto,
+  'producto_id' | 'id' | 'stockactual' | 'stock_actual' | 'activo' | 'precio' | 'preciounitario'
+>
 
 // Tipos de movimiento aceptados
 export type TipoMovimientoInventario = 
