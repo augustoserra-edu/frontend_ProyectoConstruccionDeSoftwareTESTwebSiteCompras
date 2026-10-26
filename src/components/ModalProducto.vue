@@ -2,7 +2,7 @@
 import { ref, watch, onMounted } from 'vue'
 import type { Producto, NuevoProducto } from '../types/producto'
 import { obtenerRubros } from '../services/rubrosService'
-import { RUBROS_MOCK, type Rubro } from '../types/rubro'
+import type { Rubro } from '../types/rubro'
 
 interface Props {
   mostrar: boolean
@@ -18,13 +18,12 @@ const emit = defineEmits<{
   (e: 'guardar', producto: NuevoProducto & { producto_id?: number; stockactual?: number; activo?: boolean }): void
 }>()
 
-const listaRubros = ref<Rubro[]>([...RUBROS_MOCK])
+const listaRubros = ref<Rubro[]>([])
 
 const formulario = ref<{
   producto_id?: number
   nombre: string
   descripcion: string
-  preciounitario: number
   rubro_id: number
   stockminreposicion: number
   stockactual?: number
@@ -32,17 +31,34 @@ const formulario = ref<{
 }>({
   nombre: '',
   descripcion: '',
-  preciounitario: 0,
-  rubro_id: 101,
+  rubro_id: 0,
   stockminreposicion: 0
 })
 
-onMounted(async () => {
-  const rubrosCargados = await obtenerRubros()
-  if (rubrosCargados && rubrosCargados.length > 0) {
+async function cargarRubros() {
+  try {
+    const rubrosCargados = await obtenerRubros()
     listaRubros.value = rubrosCargados
+    if (!props.productoAEditar && rubrosCargados.length > 0 && !formulario.value.rubro_id) {
+      formulario.value.rubro_id = rubrosCargados[0].rubro_id
+    }
+  } catch {
+    listaRubros.value = []
   }
+}
+
+onMounted(() => {
+  cargarRubros()
 })
+
+watch(
+  () => props.mostrar,
+  (abierto) => {
+    if (abierto && listaRubros.value.length === 0) {
+      cargarRubros()
+    }
+  }
+)
 
 watch(
   () => props.productoAEditar,
@@ -52,7 +68,6 @@ watch(
         producto_id: nuevoValor.producto_id,
         nombre: nuevoValor.nombre,
         descripcion: nuevoValor.descripcion,
-        preciounitario: nuevoValor.preciounitario ?? 0,
         rubro_id: nuevoValor.rubro_id,
         stockminreposicion: nuevoValor.stockminreposicion,
         stockactual: nuevoValor.stockactual,
@@ -62,8 +77,7 @@ watch(
       formulario.value = {
         nombre: '',
         descripcion: '',
-        preciounitario: 0,
-        rubro_id: listaRubros.value[0]?.rubro_id || 101,
+        rubro_id: listaRubros.value[0]?.rubro_id || 0,
         stockminreposicion: 0
       }
     }
@@ -142,6 +156,9 @@ function guardarProducto() {
                     class="form-select custom-input"
                     required
                   >
+                    <option v-if="listaRubros.length === 0" :value="0" disabled>
+                      Sin rubros disponibles
+                    </option>
                     <option v-for="rubro in listaRubros" :key="rubro.rubro_id" :value="rubro.rubro_id">
                       {{ rubro.nombre }}
                     </option>
@@ -177,11 +194,6 @@ function guardarProducto() {
                 </div>
 
               </div>
-            </div>
-
-            <!-- Error del backend -->
-            <div v-if="props.error" class="alert alert-danger mx-4 mb-0 py-2 small" role="alert">
-              {{ props.error }}
             </div>
 
             <!-- Footer con Acciones -->

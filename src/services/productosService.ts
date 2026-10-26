@@ -1,10 +1,8 @@
 import api from '../lib/api'
-import {
-  PRODUCTOS_MOCK,
-  MOVIMIENTOS_INVENTARIO_MOCK,
-  type Producto,
-  type NuevoProducto,
-  type MovimientoInventario
+import type {
+  Producto,
+  NuevoProducto,
+  MovimientoInventario
 } from '../types/producto'
 
 const RUTA_PRODUCTOS = '/scm/productos/'
@@ -27,8 +25,7 @@ interface RespuestaProductosAPI {
 
 function mapearProductoDesdeBackend(item: any): Producto {
   const id = item.id ?? item.producto_id
-  const precioNumerico = typeof item.precio === 'string' ? parseFloat(item.precio) : (item.precio ?? item.preciounitario ?? 0)
-  const rubroId = item.rubro ?? item.rubro_id ?? 101
+  const rubroId = item.rubro ?? item.rubro_id ?? 0
 
   return {
     id,
@@ -36,8 +33,6 @@ function mapearProductoDesdeBackend(item: any): Producto {
     codigo: item.codigo || `ART-${id}`,
     nombre: item.nombre || '',
     descripcion: item.descripcion || '',
-    precio: precioNumerico,
-    preciounitario: precioNumerico,
     rubro: rubroId,
     rubro_id: rubroId,
     rubro_nombre: item.rubro_nombre,
@@ -51,21 +46,12 @@ function mapearProductoDesdeBackend(item: any): Producto {
 }
 
 export async function obtenerProductos(): Promise<Producto[]> {
-  try {
-    const respuesta = await api.get<RespuestaProductosAPI | any[]>(RUTA_PRODUCTOS)
-    const items = Array.isArray(respuesta.data)
-      ? respuesta.data
-      : (respuesta.data?.results || [])
+  const respuesta = await api.get<RespuestaProductosAPI | any[]>(RUTA_PRODUCTOS)
+  const items = Array.isArray(respuesta.data)
+    ? respuesta.data
+    : (respuesta.data?.results || [])
 
-    if (items.length > 0) {
-      return items.map(mapearProductoDesdeBackend)
-    }
-
-    return PRODUCTOS_MOCK
-  } catch (error) {
-    console.warn('Backend de productos no disponible. Usando mocks.', error)
-    return PRODUCTOS_MOCK
-  }
+  return items.map(mapearProductoDesdeBackend)
 }
 
 export async function crearProducto(datos: NuevoProducto & { codigo?: string }): Promise<Producto> {
@@ -73,7 +59,6 @@ export async function crearProducto(datos: NuevoProducto & { codigo?: string }):
     codigo: datos.codigo || `ART-${Date.now().toString().slice(-4)}`,
     nombre: datos.nombre,
     descripcion: datos.descripcion,
-    precio: datos.preciounitario,
     rubro: datos.rubro_id,
     stock_minimo: datos.stockminreposicion
   }
@@ -87,7 +72,6 @@ export async function actualizarProducto(id: number, datos: Partial<Producto>): 
   if (datos.codigo !== undefined) payload.codigo = datos.codigo
   if (datos.nombre !== undefined) payload.nombre = datos.nombre
   if (datos.descripcion !== undefined) payload.descripcion = datos.descripcion
-  if (datos.preciounitario !== undefined) payload.precio = datos.preciounitario
   if (datos.rubro_id !== undefined) payload.rubro = datos.rubro_id
   if (datos.stockminreposicion !== undefined) payload.stock_minimo = datos.stockminreposicion
 
@@ -98,52 +82,35 @@ export async function actualizarProducto(id: number, datos: Partial<Producto>): 
 export async function inactivarProducto(id: number): Promise<void> {
   try {
     await api.delete(`${RUTA_PRODUCTOS}${id}/`)
-  } catch (error) {
+  } catch {
     await api.patch(`${RUTA_PRODUCTOS}${id}/`, { activo: false })
   }
 }
 
 export async function obtenerMovimientosPorProducto(productoId: number): Promise<MovimientoInventario[]> {
-  try {
-    const respuesta = await api.get<any>(`/scm/movimientos-inventario/?producto=${productoId}`)
-    const items = Array.isArray(respuesta.data)
-      ? respuesta.data
-      : (respuesta.data?.results || [])
+  const respuesta = await api.get<any>(`/scm/movimientos-inventario/?producto=${productoId}`)
+  const items = Array.isArray(respuesta.data)
+    ? respuesta.data
+    : (respuesta.data?.results || [])
 
-    if (items.length > 0) {
-      return items.map((m: any) => ({
-        movimientoinventario_id: m.id ?? m.movimientoinventario_id,
-        producto_id: m.producto ?? m.producto_id,
-        usuario_id: m.usuario ?? m.usuario_id ?? 1,
-        tipo: m.tipo,
-        cantidad: m.cantidad,
-        fecha: m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '',
-        observacion: m.observacion || ''
-      }))
-    }
-
-    return MOVIMIENTOS_INVENTARIO_MOCK.filter(m => m.producto_id === productoId)
-  } catch (error) {
-    console.warn('Backend de movimientos no disponible. Usando mocks.', error)
-    return MOVIMIENTOS_INVENTARIO_MOCK.filter(m => m.producto_id === productoId)
-  }
+  return items.map((m: any) => ({
+    movimientoinventario_id: m.id ?? m.movimientoinventario_id,
+    producto_id: m.producto ?? m.producto_id,
+    usuario_id: m.usuario ?? m.usuario_id ?? 1,
+    tipo: m.tipo,
+    cantidad: m.cantidad,
+    fecha: m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '',
+    observacion: m.observacion || ''
+  }))
 }
 
 // Función auxiliar exportada para las vistas de compras y proveedores
 export async function obtenerProductosProveedor(): Promise<ProductoProveedor[]> {
-  try {
-    const productos = await obtenerProductos()
-    return productos.map(p => ({
-      id: p.id ?? p.producto_id,
-      nombre: p.nombre,
-      codigo: p.codigo,
-      precio: typeof p.precio === 'string' ? parseFloat(p.precio) : p.precio,
-      rubro: p.rubro_nombre ?? p.rubro_id
-    }))
-  } catch {
-    return [
-      { id: 1, nombre: 'Cemento Portland Normal 50kg', codigo: 'ART-001', precio: 9800 },
-      { id: 2, nombre: 'Hierro Conformado 12mm x 12m', codigo: 'ART-002', precio: 14500 }
-    ]
-  }
+  const productos = await obtenerProductos()
+  return productos.map(p => ({
+    id: p.id ?? p.producto_id,
+    nombre: p.nombre,
+    codigo: p.codigo,
+    rubro: p.rubro_nombre ?? p.rubro_id
+  }))
 }
