@@ -6,7 +6,12 @@ export const CANTIDAD_MAXIMA = 2147483647
 export type CampoContactoProveedor = 'cuit' | 'telefono' | 'email'
 
 export function filtrarContactoProveedor(valor: string, campo: CampoContactoProveedor) {
-  if (campo === 'cuit') return valor.replace(/[^0-9-]/g, '')
+  if (campo === 'cuit') {
+    const digitos = valor.replace(/\D/g, '').slice(0, 11)
+    if (digitos.length < 2) return digitos
+    if (digitos.length < 10) return digitos.slice(0, 2) + '-' + digitos.slice(2)
+    return digitos.slice(0, 2) + '-' + digitos.slice(2, 10) + '-' + digitos.slice(10)
+  }
   if (campo === 'telefono') return valor.replace(/[^0-9+]/g, '').replace(/(?!^)\+/g, '').slice(0, 14)
   return valor.replace(/[^a-zA-Z0-9.!#$%&'*+/=?^_`{|}~@-]/g, '')
 }
@@ -43,16 +48,23 @@ export function normalizarProveedor(datos: NuevoProveedor): NuevoProveedor {
     cuit: limpiarTexto(datos.cuit).replace(/[- ]/g, '') }
 }
 
-export function validarProveedor(datos: NuevoProveedor, productosDisponibles: number[]) {
-  if (!datos.nombre || !datos.apellido) return 'Completá nombre y apellido o denominación.'
-  if (datos.nombre.length > 150 || datos.apellido.length > 150) return 'Nombre y apellido admiten hasta 150 caracteres.'
-  if (!/^\d{11}$/.test(datos.cuit)) return 'El CUIT debe contener 11 dígitos; podés escribirlo con guiones.'
-  if (datos.email.length > 150 || (datos.email && !emailValido(datos.email))) return 'Ingresá un email válido de hasta 150 caracteres, con un solo @ y un dominio válido.'
-  if (datos.telefono.length > 14 || (datos.telefono && !/^\+?[0-9]+$/.test(datos.telefono))) return 'Ingresá un teléfono de hasta 14 caracteres: solo números y un signo + opcional al inicio.'
-  if (datos.direccion.length > 200) return 'La dirección admite hasta 200 caracteres.'
-  if (!datos.productos.length) return 'Seleccioná al menos un producto.'
-  if (new Set(datos.productos).size !== datos.productos.length) return 'Hay productos repetidos en la selección.'
+export function validarCamposProveedor(datos: NuevoProveedor, productosDisponibles: number[]) {
+  const errores: Record<string, string> = {}
+  for (const campo of ['nombre', 'apellido'] as const) {
+    if (!datos[campo]) errores[campo] = 'Completá nombre y apellido o denominación.'
+    else if (datos[campo].length > 150) errores[campo] = 'Nombre y apellido admiten hasta 150 caracteres.'
+  }
+  if (!/^\d{11}$/.test(datos.cuit)) errores.cuit = 'El CUIT debe contener 11 dígitos; podés escribirlo con guiones.'
+  if (datos.email.length > 150 || (datos.email && !emailValido(datos.email))) errores.email = 'Ingresá un email válido de hasta 150 caracteres, con un solo @ y un dominio válido.'
+  if (datos.telefono.length > 14 || (datos.telefono && !/^\+?[0-9]+$/.test(datos.telefono))) errores.telefono = 'Ingresá un teléfono de hasta 14 caracteres: solo números y un signo + opcional al inicio.'
+  if (datos.direccion.length > 200) errores.direccion = 'La dirección admite hasta 200 caracteres.'
+  if (!datos.productos.length) errores.productos = 'Seleccioná al menos un producto.'
+  if (new Set(datos.productos).size !== datos.productos.length) errores.productos = 'Hay productos repetidos en la selección.'
   const faltantes = datos.productos.filter(id => !productosDisponibles.includes(id))
-  if (faltantes.length) return `Los productos #${faltantes.join(', #')} no están disponibles en el catálogo. Revisá la selección.`
-  return ''
+  if (faltantes.length) errores.productos = `Los productos #${faltantes.join(', #')} no están disponibles en el catálogo. Revisá la selección.`
+  return errores
+}
+
+export function validarProveedor(datos: NuevoProveedor, productosDisponibles: number[]) {
+  return Object.values(validarCamposProveedor(datos, productosDisponibles))[0] ?? ''
 }

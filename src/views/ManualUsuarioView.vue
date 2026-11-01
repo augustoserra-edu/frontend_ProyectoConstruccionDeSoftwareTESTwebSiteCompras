@@ -328,6 +328,192 @@ function alternarGuia(id: string) {
 function alternarFaq(id: string) {
   itemAbiertoFaq.value = itemAbiertoFaq.value === id ? '' : id
 }
+
+const guiaProveedoresCompras: { id: string; titulo: string; preguntas: ItemManual[] }[] = [
+  {
+    "id": "proveedores",
+    "titulo": "Proveedores",
+    "preguntas": [
+      {
+        "id": "proveedores-registrar",
+        "titulo": "¿Cómo registro un proveedor?",
+        "contenido": "Ingrese a Proveedores, presione Nuevo Proveedor y complete los datos. Seleccione los productos que suministra, asigne sus precios de compra y presione Crear Proveedor."
+      },
+      {
+        "id": "proveedores-obligatorios",
+        "titulo": "¿Qué datos son obligatorios?",
+        "contenido": "Para registrar un proveedor debe completar los siguientes datos:",
+        "puntosClave": [
+          "Nombre o razón social.",
+          "Apellido o denominación.",
+          "CUIT.",
+          "Al menos un producto suministrado y el precio de compra de cada producto seleccionado.",
+          "El email, el teléfono y la dirección son opcionales."
+        ]
+      },
+      {
+        "id": "proveedores-cuit",
+        "titulo": "¿Cómo debo ingresar el CUIT?",
+        "contenido": "Escriba los 11 números. El sistema agrega automáticamente los guiones con el formato XX-XXXXXXXX-X. También puede pegar el CUIT completo."
+      },
+      {
+        "id": "proveedores-cuit-repetido",
+        "titulo": "¿Puedo registrar dos proveedores con el mismo CUIT?",
+        "contenido": "No. Si el CUIT ya está registrado, aparecerá un mensaje debajo del campo para que lo revise."
+      },
+      {
+        "id": "proveedores-asociar-productos",
+        "titulo": "¿Cómo asocio productos a un proveedor?",
+        "contenido": "En Productos suministrados, busque los productos por nombre, código o ID y marque los que correspondan. Luego, ingrese el precio de compra de cada producto seleccionado."
+      },
+      {
+        "id": "proveedores-producto-faltante",
+        "titulo": "¿Qué hago si el producto no aparece?",
+        "contenido": "Verifique que el producto esté registrado y disponible en el catálogo. Si todavía no existe, deberá registrarlo antes de asociarlo al proveedor."
+      },
+      {
+        "id": "proveedores-precios",
+        "titulo": "¿El precio de compra puede ser diferente para cada proveedor?",
+        "contenido": "Sí. Cada proveedor tiene su propio precio de compra para los productos que suministra. Ese precio se utiliza al crear una orden de compra."
+      },
+      {
+        "id": "proveedores-editar",
+        "titulo": "¿Cómo modifico los datos de un proveedor?",
+        "contenido": "Seleccione el proveedor en el listado, realice los cambios y presione Guardar Cambios. También puede modificar sus productos asociados y precios de compra."
+      },
+      {
+        "id": "proveedores-buscar",
+        "titulo": "¿Cómo encuentro un proveedor?",
+        "contenido": "Use el buscador del listado. Puede buscar por nombre, apellido o denominación, CUIT, email o nombre de un producto asociado."
+      },
+      {
+        "id": "proveedores-validaciones",
+        "titulo": "¿Qué significa un mensaje debajo de un campo?",
+        "contenido": "Indica que ese dato necesita una corrección. Revise el mensaje, modifique el valor y vuelva a guardar."
+      }
+    ]
+  },
+  {
+    "id": "compras",
+    "titulo": "Órdenes de compra",
+    "preguntas": [
+      {
+        "id": "compras-crear",
+        "titulo": "¿Cómo creo una orden de compra?",
+        "contenido": "Ingrese a Órdenes de Compra y presione Nueva orden. Seleccione un proveedor, elija los productos, indique las cantidades y presione Guardar Orden."
+      },
+      {
+        "id": "compras-seleccionar-proveedor",
+        "titulo": "¿Por qué no puedo agregar productos sin seleccionar un proveedor?",
+        "contenido": "Primero debe seleccionar un proveedor. Así, el sistema puede mostrar los productos que tiene asociados y sus precios de compra."
+      },
+      {
+        "id": "compras-producto-faltante",
+        "titulo": "¿Por qué no aparece el producto que quiero comprar?",
+        "contenido": "La orden muestra únicamente los productos asociados al proveedor seleccionado y disponibles en el catálogo. Revise esa asociación en el módulo de Proveedores."
+      },
+      {
+        "id": "compras-varios-proveedores",
+        "titulo": "¿Puedo incluir productos de distintos proveedores en una misma orden?",
+        "contenido": "Cada orden corresponde a un solo proveedor. Para comprar a distintos proveedores, cree una orden para cada uno."
+      },
+      {
+        "id": "compras-cambiar-proveedor",
+        "titulo": "¿Qué pasa si cambio el proveedor mientras preparo la orden?",
+        "contenido": "Se eliminan los productos que había agregado. Luego, debe seleccionar los productos del nuevo proveedor."
+      },
+      {
+        "id": "compras-productos-repetidos",
+        "titulo": "¿Puedo agregar varias veces el mismo producto?",
+        "contenido": "Cada producto debe aparecer una sola vez. Si necesita más unidades, modifique la cantidad de su fila."
+      },
+      {
+        "id": "compras-cantidades",
+        "titulo": "¿Qué cantidades puedo ingresar?",
+        "contenido": "Las cantidades deben ser números enteros mayores que cero. No se permiten cantidades negativas ni decimales."
+      },
+      {
+        "id": "compras-precio-unitario",
+        "titulo": "¿Puedo modificar el precio unitario desde la orden?",
+        "contenido": "El precio se obtiene automáticamente del precio de compra asociado al proveedor. Para cambiarlo, revise el producto dentro del módulo de Proveedores."
+      },
+      {
+        "id": "compras-total",
+        "titulo": "¿Cómo se calcula el total?",
+        "contenido": "El sistema multiplica la cantidad por el precio unitario de cada producto y suma los subtotales."
+      },
+      {
+        "id": "compras-fecha",
+        "titulo": "¿Puedo elegir la fecha de la orden?",
+        "contenido": "La fecha se asigna automáticamente al crear la orden y se conserva al editarla."
+      },
+      {
+        "id": "compras-consultar",
+        "titulo": "¿Cómo consulto una orden?",
+        "contenido": "Seleccione la orden en el listado para ver el proveedor, los productos, las cantidades, los importes, el estado y los comprobantes asociados. El listado también muestra el CUIT del proveedor."
+      },
+      {
+        "id": "compras-editar",
+        "titulo": "¿Puedo editar una orden después de crearla?",
+        "contenido": "Sí, mientras esté en estado Pendiente. Abra su detalle y presione Editar orden."
+      },
+      {
+        "id": "compras-estados",
+        "titulo": "¿Qué significa cada estado?",
+        "contenido": "El estado indica en qué etapa se encuentra la orden de compra:",
+        "puntosClave": [
+          "Pendiente: la orden está registrada y puede editarse, aprobarse o rechazarse.",
+          "Aprobado: la orden fue aprobada y queda pendiente de recibir o devolver la entrega.",
+          "Rechazado: la orden fue rechazada y finalizó su proceso.",
+          "Recibido: la entrega fue aceptada y los productos ingresaron al stock.",
+          "Devuelto: la entrega fue rechazada sin ingresar los productos al stock.",
+          "Contabilizado: la orden tiene una factura de compra registrada y fue contabilizada."
+        ]
+      },
+      {
+        "id": "compras-rechazar-devolver",
+        "titulo": "¿Cuál es la diferencia entre rechazar y devolver?",
+        "contenido": "Rechazar se utiliza cuando la orden todavía está pendiente. Devolver se utiliza después de aprobarla, cuando se rechaza la entrega."
+      },
+      {
+        "id": "compras-stock",
+        "titulo": "¿Cuándo se actualiza el stock?",
+        "contenido": "Al confirmar la recepción mediante Recibir. Crear o aprobar una orden no agrega productos al stock."
+      },
+      {
+        "id": "compras-factura",
+        "titulo": "¿Dónde se registra la factura de compra?",
+        "contenido": "La factura se registra en Finanzas cuando la orden está recibida. Luego, la orden pasa a Contabilizado y el comprobante puede consultarse desde su detalle."
+      },
+      {
+        "id": "compras-buscar",
+        "titulo": "¿Cómo encuentro una orden?",
+        "contenido": "Use el buscador por número de orden, proveedor o fecha. También puede filtrar por estado."
+      },
+      {
+        "id": "compras-orden-listado",
+        "titulo": "¿En qué orden se muestran las compras?",
+        "contenido": "Por defecto, aparecen de mayor a menor número de orden."
+      },
+      {
+        "id": "compras-cargar-mas",
+        "titulo": "¿Para qué sirve Cargar más?",
+        "contenido": "El listado muestra inicialmente 20 órdenes. Al presionar Cargar más, se muestran otras 20."
+      },
+      {
+        "id": "compras-error-guardar",
+        "titulo": "¿Qué hago si aparece un error al guardar?",
+        "contenido": "Revise los mensajes debajo de los campos y corrija los datos indicados. Si el mensaje informa un problema de conexión, intente nuevamente cuando se restablezca el servicio."
+      }
+    ]
+  }
+]
+
+const itemAbiertoProveedoresCompras = ref<string>('proveedores-registrar')
+
+function alternarProveedoresCompras(id: string) {
+  itemAbiertoProveedoresCompras.value = itemAbiertoProveedoresCompras.value === id ? '' : id
+}
 </script>
 
 <template>
@@ -497,49 +683,44 @@ function alternarFaq(id: string) {
         </div>
       </div>
 
-      <!-- Sección D: Guía Operativa de Finanzas y Contabilidad -->
+      <!-- Sección D: Guía de Proveedores y Compras -->
       <div class="col-12">
         <div class="card border-0 shadow-sm overflow-hidden">
           <div class="card-header seccion-header text-white py-3 px-4 d-flex align-items-center gap-2">
             <span class="badge badge-acento">Sección D</span>
-            <h5 class="fw-bold mb-0 fs-6">Guía Operativa de Finanzas y Contabilidad (Períodos, Facturación, Cierre y Libro Diario)</h5>
+            <h5 class="fw-bold mb-0 fs-6">Guía de Proveedores y Compras</h5>
           </div>
           <div class="card-body p-3 p-md-4 bg-white">
-            <div class="accordion" id="accordionGuiaFinanzas">
-              <div
-                v-for="item in guiaFinanzas"
-                :key="item.id"
-                class="accordion-item border rounded mb-2 overflow-hidden"
-              >
-                <h2 class="accordion-header" :id="`heading-${item.id}`">
-                  <button
-                    class="accordion-button fw-semibold text-dark"
-                    :class="{ collapsed: itemAbiertoFinanzas !== item.id }"
-                    type="button"
-                    :aria-expanded="itemAbiertoFinanzas === item.id"
-                    :aria-controls="`collapse-${item.id}`"
-                    @click="alternarFinanzas(item.id)"
+            <section v-for="grupo in guiaProveedoresCompras" :key="grupo.id" class="mb-4" :aria-labelledby="`titulo-manual-${grupo.id}`">
+              <h6 :id="`titulo-manual-${grupo.id}`" class="fw-bold mb-3">{{ grupo.titulo }}</h6>
+              <div class="accordion" :id="`accordion-${grupo.id}`">
+                <div v-for="item in grupo.preguntas" :key="item.id" class="accordion-item border rounded mb-2 overflow-hidden">
+                  <h2 class="accordion-header" :id="`heading-${item.id}`">
+                    <button
+                      class="accordion-button fw-semibold text-dark"
+                      :class="{ collapsed: itemAbiertoProveedoresCompras !== item.id }"
+                      type="button"
+                      :aria-expanded="itemAbiertoProveedoresCompras === item.id"
+                      :aria-controls="`collapse-${item.id}`"
+                      @click="alternarProveedoresCompras(item.id)"
+                    >{{ item.titulo }}</button>
+                  </h2>
+                  <div
+                    :id="`collapse-${item.id}`"
+                    class="accordion-collapse collapse"
+                    :class="{ show: itemAbiertoProveedoresCompras === item.id }"
+                    :aria-labelledby="`heading-${item.id}`"
                   >
-                    {{ item.titulo }}
-                  </button>
-                </h2>
-                <div
-                  :id="`collapse-${item.id}`"
-                  class="accordion-collapse collapse"
-                  :class="{ show: itemAbiertoFinanzas === item.id }"
-                  :aria-labelledby="`heading-${item.id}`"
-                >
-                  <div class="accordion-body bg-light-subtle text-secondary">
-                    <p class="mb-3">{{ item.contenido }}</p>
-                    <ul v-if="item.puntosClave && item.puntosClave.length" class="mb-0 ps-3 small">
-                      <li v-for="(punto, idx) in item.puntosClave" :key="idx" class="mb-1">
-                        {{ punto }}
-                      </li>
-                    </ul>
+                    <div class="accordion-body bg-light-subtle text-secondary">
+                      <p class="mb-3">{{ item.contenido }}</p>
+                      <ul v-if="item.puntosClave && item.puntosClave.length" class="mb-0 ps-3 small">
+                        <li v-for="(punto, idx) in item.puntosClave" :key="idx" class="mb-1">{{ punto }}</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </section>
           </div>
         </div>
       </div>
