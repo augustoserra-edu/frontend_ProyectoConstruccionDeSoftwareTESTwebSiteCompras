@@ -150,11 +150,13 @@ async function eliminarSeleccionado() {
         <div class="row">
           <div class="col-md-6">
             <input
+              id="filtroBusquedaRubros"
               v-model="filtroBusqueda"
               type="text"
               class="form-control custom-search"
               placeholder="Buscar por Nombre o Descripción..."
               title="Nombre identificador de la categoría"
+              aria-label="Buscar por nombre o descripción"
             />
           </div>
         </div>
