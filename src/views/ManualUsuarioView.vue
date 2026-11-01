@@ -159,6 +159,159 @@ const guiaVentas: ItemManual[] = [
   }
 ]
 
+const guiaFinanzas: ItemManual[] = [
+  {
+    id: 'finanzas-flujo',
+    titulo: '¿Cuál es el flujo de trabajo mensual en Finanzas?',
+    contenido:
+      'El módulo "Finanzas" organiza la contabilidad por meses. El circuito habitual de cada mes tiene cuatro pasos: contar con el período del mes, facturar las órdenes de compra y de venta, controlar el libro diario y, al finalizar el mes, ejecutar el cierre.',
+    puntosClave: [
+      'Facturar Órdenes: transforma las órdenes de compra y de venta en facturas y genera automáticamente su asiento en el libro diario.',
+      'Cierre y Libro Diario: permite controlar los asientos del mes y cerrarlo cuando ya no quedan operaciones por registrar.',
+      'Crear Período: da de alta el período contable de un mes. Si no se cargó antes, el sistema lo crea solo al emitir la primera factura de ese mes.',
+      'Recomendación: cierre el mes recién cuando todas las órdenes del período estén facturadas, porque un mes cerrado ya no admite facturas.'
+    ]
+  },
+  {
+    id: 'finanzas-crear-periodo',
+    titulo: '¿Cómo crear un período contable?',
+    contenido:
+      'Ingrese al módulo "Finanzas" y seleccione "Crear Período" en el panel lateral. Presione el botón "Crear Período", elija el mes y el año y confirme con "Guardar Período". El nuevo período aparece en la tabla "Períodos Registrados".',
+    puntosClave: [
+      'El mes y el año actuales vienen preseleccionados. El año debe estar entre 2000 y 2100.',
+      'No pueden existir dos períodos del mismo mes y año: si el período ya existe, el sistema lo avisa y el botón "Guardar Período" queda inactivo.',
+      'Al crear un período, el sistema crea automáticamente su cierre mensual en estado "Abierto". Puede consultarlo en "Cierre y Libro Diario".',
+      'Desde esta pantalla los períodos solo se crean y se consultan: no se modifican ni se eliminan.'
+    ]
+  },
+  {
+    id: 'finanzas-facturar-orden',
+    titulo: '¿Cómo facturar una orden de compra o de venta?',
+    contenido:
+      'Ingrese a "Finanzas" y seleccione "Facturar Órdenes". En la columna derecha elija una orden de la tabla "Órdenes de Compra (Proveedores)" o de "Órdenes de Venta (Clientes)". Si desea revisarla antes, presione "Ver". Luego presione "Facturar Orden".',
+    puntosClave: [
+      'No hay que cargar datos a mano: el tipo de factura, el número, la fecha del día, el IVA y los ítems los arma el sistema a partir de la orden seleccionada.',
+      'Número de factura: en las ventas se usa el número de comprobante de la orden (por ejemplo B-0000002); si no tiene, se arma como FV- seguido del número de orden. En las compras se arma como FC- seguido del número de orden.',
+      'Al terminar aparece un mensaje verde con el número y el total de la factura. La orden deja de figurar entre las pendientes y la factura pasa a "Facturas Registradas".',
+      'Cada factura genera automáticamente su asiento en el libro diario, en el mes de la fecha de la factura.',
+      'Una orden se factura una sola vez: una vez facturada, el sistema no vuelve a ofrecerla.'
+    ]
+  },
+  {
+    id: 'finanzas-orden-no-aparece',
+    titulo: '¿Por qué no veo una orden en la lista para facturar?',
+    contenido:
+      'Las tablas de "Facturar Órdenes" muestran solo las órdenes pendientes de facturar: las que todavía no tienen una factura y no están anuladas ni canceladas.',
+    puntosClave: [
+      'Si la orden ya fue facturada, búsquela en "Facturas Registradas": el detalle de la factura indica su orden de origen.',
+      'Las órdenes de venta anuladas no se ofrecen para facturar.',
+      'La lista se carga al ingresar a la pantalla. Si acaba de generar una orden en Ventas o en Proveedores y Compra, cambie de opción en el panel lateral y vuelva a ingresar a "Facturar Órdenes" para actualizarla.',
+      'En las órdenes de compra, facture únicamente las que ya fueron recibidas. Desde Proveedores y Compra también se puede enviar una orden recibida a Finanzas, y queda marcada como "Contabilizado".'
+    ]
+  },
+  {
+    id: 'finanzas-boton-inactivo',
+    titulo: '¿Por qué los botones "Ver" y "Facturar Orden" aparecen inactivos?',
+    contenido:
+      'Los botones se habilitan recién cuando hay una orden seleccionada. El recuadro "Orden seleccionada" indica cuál es: si dice "Ninguna", todavía no eligió ninguna.',
+    puntosClave: [
+      'Haga clic sobre la fila de la orden para seleccionarla. Si vuelve a hacer clic sobre la misma fila, se deselecciona.',
+      'Solo puede haber una orden seleccionada a la vez: al elegir una de compra se reemplaza la de venta, y al revés.',
+      'Mientras se emite la factura, el botón cambia a "Facturando…" y queda inactivo para evitar facturar dos veces la misma orden.',
+      'El botón "Ver Detalle" de "Facturas Registradas" se habilita al seleccionar una factura.'
+    ]
+  },
+  {
+    id: 'finanzas-importes',
+    titulo: '¿Cómo se calculan el subtotal, el IVA y el total de una factura?',
+    contenido:
+      'Los importes los calcula el sistema y no se pueden editar. El subtotal es la suma de los ítems (cantidad por precio unitario), el IVA es el 21 % de ese subtotal y el total es el subtotal más el IVA.',
+    puntosClave: [
+      'Ejemplo: un ítem de 1 unidad a $10,00 da un subtotal de $10,00, un IVA de $2,10 y un total de $12,10.',
+      'Si una orden de venta tiene descuento en un ítem, se factura el precio unitario efectivo: el precio menos el descuento, repartido por unidad.',
+      'Ningún importe de una factura puede superar $9.999.999.999,99. Si ocurriera, el sistema muestra un mensaje y no emite la factura.'
+    ]
+  },
+  {
+    id: 'finanzas-detalle-factura',
+    titulo: '¿Cómo consultar una factura y su detalle?',
+    contenido:
+      'En "Facturar Órdenes", la tabla "Facturas Registradas" lista las facturas con su número, tipo (Venta o Compra), fecha y total. Seleccione una fila y presione "Ver Detalle" para abrir el comprobante.',
+    puntosClave: [
+      'El comprobante muestra la fecha de emisión, la orden de origen (por ejemplo "Orden Venta #14"), el número de asiento del libro diario, los ítems y el subtotal, el IVA y el total.',
+      'Los productos se identifican por su número (por ejemplo "Producto #2").',
+      'En "Asiento Diario N°" figura el asiento del libro diario que generó la factura. Las facturas emitidas antes de que el sistema generara asientos automáticos pueden mostrar "S/N".',
+      'Las facturas emitidas no se pueden modificar ni eliminar.'
+    ]
+  },
+  {
+    id: 'finanzas-libro-diario',
+    titulo: '¿Cómo consultar el libro diario y filtrarlo por mes?',
+    contenido:
+      'Ingrese a "Cierre y Libro Diario". En la parte inferior, "Libro Diario (Asientos Contables)" muestra los asientos con su número, fecha y descripción. Use el desplegable "Filtrar período" para ver solo los asientos de un mes, o "Ver Histórico Completo" para verlos todos.',
+    puntosClave: [
+      'Cada factura emitida genera un único asiento, por ejemplo "Factura de venta B-0000002 (orden de venta #2)".',
+      'Los asientos los genera el sistema: no se cargan ni se modifican a mano.',
+      'El libro diario no muestra importes; para ver el monto, consulte la factura en "Facturar Órdenes".',
+      'Si el mes elegido no tiene facturas, la tabla indica "No se registran asientos en este período."'
+    ]
+  },
+  {
+    id: 'finanzas-cerrar-mes',
+    titulo: '¿Cómo cerrar un mes y qué significa cada estado?',
+    contenido:
+      'En "Cierre y Libro Diario", la tabla "Períodos Mensuales" muestra cada período con su estado. Seleccione un período en estado "Abierto", presione "Ejecutar Cierre de Período" y confirme con "Confirmar Cierre". El período pasa a "Cerrado" y se registra la fecha de cierre.',
+    puntosClave: [
+      'Abierto: el mes admite nuevas facturas. Cerrado: el mes quedó protegido y no admite más cambios. Mientras el período está abierto, la fecha de cierre figura como "-".',
+      'El botón "Ejecutar Cierre de Período" está inactivo si no hay un período seleccionado o si el seleccionado ya está cerrado.',
+      'Antes de confirmar, el sistema advierte que un período cerrado no se puede volver a modificar.',
+      'Un cierre no se puede reabrir desde el sistema. Si se cerró un mes por error, solicite su corrección al área técnica.',
+      'Se recomienda cerrar el mes recién cuando todas sus órdenes estén facturadas.'
+    ]
+  },
+  {
+    id: 'finanzas-mes-cerrado',
+    titulo: '¿Qué ocurre cuando un mes ya está cerrado?',
+    contenido:
+      'Un mes cerrado queda protegido: el sistema no permite registrar nuevas facturas con fecha en ese mes, agregar ítems a sus facturas ni modificar el período.',
+    puntosClave: [
+      'Si intenta facturar y el mes está cerrado, aparece un mensaje rojo indicando que el período ya está cerrado y la factura no se guarda.',
+      'Las facturas se emiten con la fecha del día. Por eso, si el mes en curso ya está cerrado, no se podrán emitir facturas hasta que comience el mes siguiente: el sistema crea el nuevo período automáticamente al facturar.',
+      'Las facturas y los asientos de un mes cerrado siguen disponibles para su consulta.'
+    ]
+  },
+  {
+    id: 'finanzas-errores',
+    titulo: '¿Qué significan los mensajes de error más frecuentes en Finanzas?',
+    contenido:
+      'Cuando una operación no se puede completar, aparece un recuadro rojo sobre la tabla con el motivo. Los casos más habituales son los siguientes.',
+    puntosClave: [
+      '"El período MM/AAAA ya está cerrado y no admite cambios": el mes de la factura está cerrado. Consulte la ayuda sobre meses cerrados.',
+      '"Los campos tipo, numero deben formar un conjunto único": ya existe una factura con ese número. Suele ocurrir si la orden ya fue facturada; revise "Facturas Registradas".',
+      '"Ya existe un período para ese año y mes": el período ya está creado. Búsquelo en la tabla "Períodos Registrados".',
+      '"El importe supera el máximo permitido": algún importe de la factura excede $9.999.999.999,99.',
+      '"La orden seleccionada no tiene ítems para facturar": la orden no tiene productos cargados; revísela en su módulo de origen.',
+      'Si el mensaje indica que no se pudo conectar con el servidor, siga los pasos de las preguntas frecuentes generales (Sección B).'
+    ]
+  },
+  {
+    id: 'finanzas-relacion-modulos',
+    titulo: '¿Cómo se relaciona Finanzas con Ventas y con Proveedores y Compra?',
+    contenido:
+      'Finanzas toma las órdenes que generan los otros módulos y las convierte en facturas. No modifica las órdenes: solo las lee y registra la factura correspondiente.',
+    puntosClave: [
+      'Ventas: una orden "En proceso" pasa a verse como "Confirmada" en Ventas, al actualizar su pantalla, apenas Finanzas la factura.',
+      'Proveedores y Compra: las órdenes de compra recibidas se pueden facturar desde Finanzas o enviarse a Finanzas desde ese módulo. En este último caso la orden queda marcada como "Contabilizado".'
+    ]
+  }
+]
+
+const itemAbiertoFinanzas = ref<string>('finanzas-flujo')
+
+function alternarFinanzas(id: string) {
+  itemAbiertoFinanzas.value = itemAbiertoFinanzas.value === id ? '' : id
+}
+
 const itemAbiertoVentas = ref<string>('ventas-clientes')
 
 function alternarVentas(id: string) {
@@ -327,6 +480,53 @@ function alternarFaq(id: string) {
                   :id="`collapse-${item.id}`"
                   class="accordion-collapse collapse"
                   :class="{ show: itemAbiertoVentas === item.id }"
+                  :aria-labelledby="`heading-${item.id}`"
+                >
+                  <div class="accordion-body bg-light-subtle text-secondary">
+                    <p class="mb-3">{{ item.contenido }}</p>
+                    <ul v-if="item.puntosClave && item.puntosClave.length" class="mb-0 ps-3 small">
+                      <li v-for="(punto, idx) in item.puntosClave" :key="idx" class="mb-1">
+                        {{ punto }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección D: Guía Operativa de Finanzas y Contabilidad -->
+      <div class="col-12">
+        <div class="card border-0 shadow-sm overflow-hidden">
+          <div class="card-header seccion-header text-white py-3 px-4 d-flex align-items-center gap-2">
+            <span class="badge badge-acento">Sección D</span>
+            <h5 class="fw-bold mb-0 fs-6">Guía Operativa de Finanzas y Contabilidad (Períodos, Facturación, Cierre y Libro Diario)</h5>
+          </div>
+          <div class="card-body p-3 p-md-4 bg-white">
+            <div class="accordion" id="accordionGuiaFinanzas">
+              <div
+                v-for="item in guiaFinanzas"
+                :key="item.id"
+                class="accordion-item border rounded mb-2 overflow-hidden"
+              >
+                <h2 class="accordion-header" :id="`heading-${item.id}`">
+                  <button
+                    class="accordion-button fw-semibold text-dark"
+                    :class="{ collapsed: itemAbiertoFinanzas !== item.id }"
+                    type="button"
+                    :aria-expanded="itemAbiertoFinanzas === item.id"
+                    :aria-controls="`collapse-${item.id}`"
+                    @click="alternarFinanzas(item.id)"
+                  >
+                    {{ item.titulo }}
+                  </button>
+                </h2>
+                <div
+                  :id="`collapse-${item.id}`"
+                  class="accordion-collapse collapse"
+                  :class="{ show: itemAbiertoFinanzas === item.id }"
                   :aria-labelledby="`heading-${item.id}`"
                 >
                   <div class="accordion-body bg-light-subtle text-secondary">
