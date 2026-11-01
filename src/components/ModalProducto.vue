@@ -127,8 +127,9 @@ function guardarProducto() {
                 
                 <!-- ID bloqueado en edición -->
                 <div v-if="productoAEditar" class="col-md-12">
-                  <label class="form-label fw-semibold text-dark">ID Producto</label>
+                  <label for="productoId" class="form-label fw-semibold text-dark">ID Producto</label>
                   <input
+                    id="productoId"
                     type="text"
                     class="form-control bg-light"
                     :value="formulario.producto_id"
@@ -138,8 +139,9 @@ function guardarProducto() {
 
                 <!-- Nombre -->
                 <div class="col-md-7">
-                  <label class="form-label fw-semibold text-dark">Nombre del Producto *</label>
+                  <label for="productoNombre" class="form-label fw-semibold text-dark">Nombre del Producto *</label>
                   <input
+                    id="productoNombre"
                     v-model="formulario.nombre"
                     type="text"
                     class="form-control custom-input"
@@ -150,8 +152,9 @@ function guardarProducto() {
 
                 <!-- Rubro -->
                 <div class="col-md-5">
-                  <label class="form-label fw-semibold text-dark">Rubro *</label>
+                  <label for="productoRubro" class="form-label fw-semibold text-dark">Rubro *</label>
                   <select
+                    id="productoRubro"
                     v-model.number="formulario.rubro_id"
                     class="form-select custom-input"
                     required
@@ -167,8 +170,9 @@ function guardarProducto() {
 
                 <!-- Descripción -->
                 <div class="col-md-12">
-                  <label class="form-label fw-semibold text-dark">Descripción *</label>
+                  <label for="productoDescripcion" class="form-label fw-semibold text-dark">Descripción *</label>
                   <textarea
+                    id="productoDescripcion"
                     v-model="formulario.descripcion"
                     class="form-control custom-input"
                     rows="3"
@@ -179,8 +183,9 @@ function guardarProducto() {
 
                 <!-- Stock Mínimo Reposición -->
                 <div class="col-md-12">
-                  <label class="form-label fw-semibold text-dark">Stock Mín. Reposición *</label>
+                  <label for="productoStockMin" class="form-label fw-semibold text-dark">Stock Mín. Reposición *</label>
                   <input
+                    id="productoStockMin"
                     v-model.number="formulario.stockminreposicion"
                     type="number"
                     min="0"
