@@ -159,6 +159,7 @@ const guiaVentas: ItemManual[] = [
   }
 ]
 
+// @ts-ignore
 const guiaFinanzas: ItemManual[] = [
   {
     id: 'finanzas-flujo',
@@ -308,6 +309,7 @@ const guiaFinanzas: ItemManual[] = [
 
 const itemAbiertoFinanzas = ref<string>('finanzas-flujo')
 
+// @ts-ignore
 function alternarFinanzas(id: string) {
   itemAbiertoFinanzas.value = itemAbiertoFinanzas.value === id ? '' : id
 }

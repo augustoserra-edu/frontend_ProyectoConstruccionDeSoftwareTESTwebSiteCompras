@@ -159,6 +159,7 @@ async function guardarProducto(datos: any) {
       <div class="w-100 w-md-auto">
         <button 
           class="btn btn-coralon d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold w-100 w-md-auto shadow-sm"
+          title="Crear un nuevo producto en el catálogo"
           @click="abrirModalCrear"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -179,6 +180,7 @@ async function guardarProducto(datos: any) {
               type="text"
               class="form-control custom-search"
               placeholder="Buscar por Nombre, Descripción o Rubro..."
+              title="Buscar por código, nombre o descripción"
             />
           </div>
         </div>
@@ -195,6 +197,7 @@ async function guardarProducto(datos: any) {
       <button
         type="button"
         class="btn btn-sm btn-outline-danger fw-semibold flex-shrink-0"
+        title="Volver a cargar los datos del catálogo"
         @click="cargarDatos"
       >
         Reintentar
@@ -210,9 +213,9 @@ async function guardarProducto(datos: any) {
               <th class="ps-3 py-3" style="width: 60px;">ID</th>
               <th class="py-3">Producto</th>
               <th class="py-3 d-none d-md-table-cell">Descripción</th>
-              <th class="py-3 d-none d-lg-table-cell">Rubro</th>
-              <th class="py-3 text-center">Stock Actual</th>
-              <th class="py-3 text-center d-none d-sm-table-cell">Stock Mín.</th>
+              <th class="py-3 d-none d-lg-table-cell" title="Filtrar los productos por categoría">Rubro</th>
+              <th class="py-3 text-center" title="Cantidad física disponible en depósito">Stock Actual</th>
+              <th class="py-3 text-center d-none d-sm-table-cell" title="Umbral mínimo requerido para alertar reposición">Stock Mín.</th>
               <th class="pe-3 py-3 text-end" style="min-width: 170px;">Acciones</th>
             </tr>
           </thead>
@@ -225,26 +228,27 @@ async function guardarProducto(datos: any) {
               <td>
                 <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
                 <div class="d-lg-none mt-1">
-                  <span class="badge badge-rubro small">{{ obtenerNombreRubro(producto.rubro_id, producto.rubro_nombre) }}</span>
+                  <span class="badge badge-rubro small" title="Filtrar los productos por categoría">{{ obtenerNombreRubro(producto.rubro_id, producto.rubro_nombre) }}</span>
                 </div>
               </td>
               <td class="text-secondary small text-truncate d-none d-md-table-cell" style="max-width: 250px;">
                 {{ producto.descripcion }}
               </td>
               <td class="d-none d-lg-table-cell">
-                <span class="badge badge-rubro">
+                <span class="badge badge-rubro" title="Filtrar los productos por categoría">
                   {{ obtenerNombreRubro(producto.rubro_id, producto.rubro_nombre) }}
                 </span>
               </td>
-              <td class="text-center">
+              <td class="text-center" title="Cantidad física disponible en depósito">
                 <span 
                   class="badge px-2 py-1" 
                   :class="producto.stockactual <= producto.stockminreposicion ? 'bg-danger' : 'bg-success'"
+                  title="Cantidad física disponible en depósito"
                 >
                   {{ producto.stockactual }} un.
                 </span>
               </td>
-              <td class="text-muted text-center d-none d-sm-table-cell">{{ producto.stockminreposicion }} un.</td>
+              <td class="text-muted text-center d-none d-sm-table-cell" title="Umbral mínimo requerido para alertar reposición">{{ producto.stockminreposicion }} un.</td>
               
               <!-- Columna de Acciones por Fila -->
               <td class="pe-3 text-end">
@@ -252,7 +256,7 @@ async function guardarProducto(datos: any) {
                   <button
                     type="button"
                     class="btn btn-outline-secondary"
-                    title="Ver Movimientos"
+                    title="Consultar historial de movimientos del producto"
                     @click="verMovimientos(producto)"
                   >
                     👁
@@ -260,7 +264,7 @@ async function guardarProducto(datos: any) {
                   <button
                     type="button"
                     class="btn btn-outline-coralon"
-                    title="Editar Producto"
+                    title="Editar datos del producto"
                     @click="abrirModalEditar(producto)"
                   >
                     ✏️
@@ -268,7 +272,7 @@ async function guardarProducto(datos: any) {
                   <button
                     type="button"
                     class="btn btn-outline-danger"
-                    title="Inactivar Producto"
+                    title="Inactivar o eliminar el producto del catálogo activo"
                     @click="solicitarBaja(producto)"
                   >
                     ✕
