@@ -176,11 +176,13 @@ async function guardarProducto(datos: any) {
         <div class="row">
           <div class="col-12 col-md-6 col-lg-5">
             <input
+              id="filtroBusquedaProductos"
               v-model="filtroBusqueda"
               type="text"
               class="form-control custom-search"
               placeholder="Buscar por Nombre, Descripción o Rubro..."
               title="Buscar por código, nombre o descripción"
+              aria-label="Buscar productos por código, nombre o descripción"
             />
           </div>
         </div>

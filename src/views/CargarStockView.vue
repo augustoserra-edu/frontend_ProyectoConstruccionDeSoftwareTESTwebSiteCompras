@@ -145,11 +145,13 @@ async function confirmarReposicion(datos: {
                 </svg>
               </span>
               <input
+                id="filtroBusquedaCargarStock"
                 v-model="filtroBusqueda"
                 type="text"
                 class="form-control border-start-0 ps-2"
                 placeholder="Buscar por código o nombre del producto..."
                 title="Seleccionar el producto a reponer"
+                aria-label="Buscar producto por código o nombre"
               />
             </div>
           </div>
@@ -203,9 +205,11 @@ async function confirmarReposicion(datos: {
             >
               <td class="ps-3">
                 <input
+                  :id="'radio-producto-' + (producto.id ?? producto.producto_id)"
                   type="radio"
                   class="form-check-input"
                   title="Seleccionar el producto a reponer"
+                  aria-label="Seleccionar este producto"
                   :checked="(productoSeleccionado?.id ?? productoSeleccionado?.producto_id) === (producto.id ?? producto.producto_id)"
                   @click.stop="seleccionarProducto(producto)"
                 />

@@ -69,12 +69,12 @@ const proveedorActual = computed(() => {
 const precioUnitarioProveedor = computed<number>(() => {
   if (!proveedorActual.value || !prodId.value) return 0
   const precioPactado = (proveedorActual.value as any).preciosCompra?.[prodId.value]
-  if (precioPactado != null && !isNaN(Number(precioPactado))) {
+  if (precioPactado != null && !Number.isNaN(Number(precioPactado))) {
     return Number(precioPactado)
   }
   // Fallback de compatibilidad con precio general del catálogo
   const fallback = typeof props.producto?.precio === 'string'
-    ? parseFloat(props.producto.precio)
+    ? Number.parseFloat(props.producto.precio)
     : (props.producto?.precio ?? props.producto?.preciounitario ?? 0)
   return Number(fallback) || 0
 })
@@ -211,7 +211,7 @@ function guardar() {
                 </div>
 
                 <div class="col-sm-6">
-                  <label class="form-label small fw-bold text-dark">Precio de Compra</label>
+                  <span class="form-label small fw-bold text-dark d-block">Precio de Compra</span>
                   <div class="form-control bg-light text-muted">
                     <span v-if="precioUnitarioProveedor > 0" class="fw-semibold text-dark">
                       ${{ precioUnitarioProveedor.toLocaleString('es-AR', { minimumFractionDigits: 2 }) }}
