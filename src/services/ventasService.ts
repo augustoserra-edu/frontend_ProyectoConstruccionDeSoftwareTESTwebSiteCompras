@@ -13,10 +13,13 @@ const RUTA_FACTURAS = '/contabilidad/facturas/'
 
 // Las listas paginadas del backend llegan como { count, next, results: [...] }.
 // Esta función va pidiendo página por página hasta juntar todo.
-async function obtenerTodos<T>(ruta: string): Promise<T[]> {
+// Si se pasa "busqueda", el filtro lo hace el servidor (parámetro ?search=), no el navegador.
+async function obtenerTodos<T>(ruta: string, busqueda = ''): Promise<T[]> {
   const resultado: T[] = []
   for (let pagina = 1; pagina <= 50; pagina++) {
-    const { data } = await api.get(ruta, { params: { page: pagina } })
+    const params: Record<string, string | number> = { page: pagina }
+    if (busqueda.trim()) params.search = busqueda.trim()
+    const { data } = await api.get(ruta, { params })
     if (Array.isArray(data)) return data as T[] // lista simple, sin paginar
     resultado.push(...((data?.results ?? []) as T[]))
     if (!data?.next) break
@@ -51,8 +54,8 @@ function clienteDesdeApi(c: ClienteApi): Cliente {
   }
 }
 
-export async function obtenerClientes(): Promise<Cliente[]> {
-  const clientes = await obtenerTodos<ClienteApi>(RUTA_CLIENTES)
+export async function obtenerClientes(busqueda = ''): Promise<Cliente[]> {
+  const clientes = await obtenerTodos<ClienteApi>(RUTA_CLIENTES, busqueda)
   return clientes.map(clienteDesdeApi)
 }
 
@@ -74,7 +77,7 @@ export async function obtenerProductosVenta(): Promise<ProductoVenta[]> {
   }))
 }
 
-// ---------- Órdenes de venta (historial de Devoluciones) ----------
+// ---------- Órdenes de venta (historial de Estado orden venta) ----------
 interface OrdenVentaApi {
   id: number
   cliente: number | null
@@ -110,10 +113,10 @@ function formatearFecha(iso: string): string {
   return `${f.getFullYear()}-${dos(f.getMonth() + 1)}-${dos(f.getDate())} ${dos(f.getHours())}:${dos(f.getMinutes())}`
 }
 
-export async function obtenerOrdenesVenta(): Promise<VentaHistorial[]> {
+export async function obtenerOrdenesVenta(busqueda = ''): Promise<VentaHistorial[]> {
   // La orden solo trae el id del cliente: buscamos los nombres en la lista de clientes
   const [ordenes, clientes, facturadas] = await Promise.all([
-    obtenerTodos<OrdenVentaApi>(RUTA_ORDENES),
+    obtenerTodos<OrdenVentaApi>(RUTA_ORDENES, busqueda),
     obtenerClientes(),
     obtenerIdsOrdenesFacturadas(),
   ])
@@ -220,7 +223,7 @@ export async function crearOrdenVenta(datos: DatosOrdenVenta): Promise<{ id: num
   return { id: data.id, total: Number(data.total) }
 }
 
-// ---------- Devoluciones: anular (POST) y nota de crédito (POST) ----------
+// ---------- Estado orden venta: anular (POST) y nota de crédito (POST) ----------
 export async function anularOrdenVenta(ordenId: number, motivo: string, detalle: string): Promise<void> {
   exigirSesion()
   await api.post('/ventas/anulaciones/', {
@@ -254,4 +257,60 @@ export async function crearNotaCredito(datos: DatosNotaCredito): Promise<void> {
       destino: DESTINO_DEVOLUCION[i.destino],
     })),
   })
+}
+
+// ---------- Ojito: motivo de la anulación o detalle de la devolución (GET) ----------
+const ETIQUETA_DESTINO: Record<string, string> = {
+  STOCK_DISPONIBLE: 'Stock disponible',
+  PRODUCTO_DANADO: 'Producto dañado (baja)',
+}
+
+// Sin el ojito abierto no se pide nada: los datos se traen solo cuando se hace clic
+async function buscarRegistros<T extends { orden_venta: number }>(
+  ruta: string,
+  venta: { id: number; comprobante: string },
+): Promise<T[]> {
+  let registros = (await obtenerTodos<T>(ruta, venta.comprobante)).filter((r) => r.orden_venta === venta.id)
+  if (registros.length === 0) {
+    // por si la búsqueda del servidor no encuentra el comprobante (ej. "OV-12")
+    registros = (await obtenerTodos<T>(ruta)).filter((r) => r.orden_venta === venta.id)
+  }
+  return registros
+}
+
+export async function obtenerMotivoOrden(
+  venta: { id: number; comprobante: string; estado: EstadoVenta },
+): Promise<{ titulo: string; mensaje: string }> {
+  exigirSesion()
+  if (venta.estado === 'Anulada') {
+    const anulaciones = await buscarRegistros<{ orden_venta: number; motivo: string; detalle: string | null; fecha: string }>(
+      '/ventas/anulaciones/',
+      venta,
+    )
+    const a = anulaciones[0]
+    if (!a) return { titulo: 'Orden anulada', mensaje: 'No se encontró el motivo de esta anulación.' }
+    return {
+      titulo: `Motivo de la anulación — ${venta.comprobante}`,
+      mensaje:
+        `Motivo: ${a.motivo}\n` +
+        `Detalle: ${a.detalle || 'Sin detalle'}\n` +
+        `Fecha: ${formatearFecha(a.fecha)}`,
+    }
+  }
+
+  const notas = await buscarRegistros<{
+    orden_venta: number
+    monto: string | number
+    fecha: string
+    items: { producto_nombre: string; cantidad_devuelta: number; destino: string }[]
+  }>('/ventas/notas-credito/', venta)
+  if (notas.length === 0) return { titulo: 'Orden devuelta', mensaje: 'No se encontró el detalle de esta devolución.' }
+  const lineas = notas.map(
+    (n) =>
+      `Fecha: ${formatearFecha(n.fecha)} — Monto: $${Number(n.monto).toLocaleString('es-AR')}\n` +
+      n.items
+        .map((i) => `• ${i.producto_nombre}: ${i.cantidad_devuelta} u. → ${ETIQUETA_DESTINO[i.destino] ?? i.destino}`)
+        .join('\n'),
+  )
+  return { titulo: `Detalle de la devolución — ${venta.comprobante}`, mensaje: lineas.join('\n\n') }
 }

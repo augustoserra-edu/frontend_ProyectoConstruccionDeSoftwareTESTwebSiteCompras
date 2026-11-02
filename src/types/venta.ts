@@ -4,6 +4,7 @@ export interface ItemVenta {
   nombre: string
   cantidad: number
   precioUnitario: number
+  stock: number // stock disponible: la cantidad no puede pasarlo
 }
 
 export const TIPOS_COMPROBANTE = ['Factura A', 'Factura B', 'Factura C', 'Nota de venta']

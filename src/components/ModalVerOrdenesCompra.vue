@@ -68,7 +68,7 @@ const ordenesFiltradas = computed(() => {
       proveedorOrden?.nombre, proveedorOrden?.apellido,
       facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(' ')
     ].join(' ')).includes(texto)
-  })
+  }).sort((a, b) => b.ordencompra_id - a.ordencompra_id)
 })
 
 const seleccionada = computed(() => ordenesFiltradas.value.find(item => item.ordencompra_id === ordenId.value))
@@ -104,7 +104,7 @@ watch(() => props.mostrar, async mostrar => {
     busqueda.value = ''
     filtroEstado.value = ''
     ordenId.value = props.ordenes.find(orden => orden.ordencompra_id === props.ordenInicialId)?.ordencompra_id
-      ?? props.ordenes[0]?.ordencompra_id ?? null
+      ?? ordenesFiltradas.value[0]?.ordencompra_id ?? null
     await nextTick()
     if (esMobile.value) {
       const botonSeleccionado = dialogo.value?.querySelector<HTMLButtonElement>('.list-group button[aria-pressed="true"]')

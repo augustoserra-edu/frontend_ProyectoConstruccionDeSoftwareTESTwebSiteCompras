@@ -60,4 +60,3 @@ export const alerta = {
 }
 
 export default alerta
-

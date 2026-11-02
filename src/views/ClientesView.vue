@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { type Cliente, type NuevoCliente } from '../types/cliente'
-import { obtenerClientes, crearCliente, actualizarCliente, textoError } from '../services/ventasService'
+import {
+  obtenerClientes,
+  buscarClientePorCuil,
+  crearCliente,
+  actualizarCliente,
+  textoError,
+} from '../services/ventasService'
 import ModalCliente from '../components/ModalCliente.vue'
 import { avisoError } from '../utils/avisos'
 
@@ -9,55 +15,52 @@ const listaClientes = ref<Cliente[]>([])
 const cargando = ref(false)
 const error = ref('')
 
+const filtroBusqueda = ref('')
+
+// La búsqueda la hace el servidor (?search=): se evita que lleguen respuestas viejas pisando a las nuevas
+let numeroPedido = 0
 async function cargarClientes() {
+  const pedido = ++numeroPedido
   cargando.value = true
   error.value = ''
   try {
-    listaClientes.value = await obtenerClientes()
+    const clientes = await obtenerClientes(filtroBusqueda.value)
+    if (pedido === numeroPedido) listaClientes.value = clientes
   } catch (err) {
     console.error(err)
-    error.value = 'Error: no se pudieron cargar los clientes. Verificá que el servidor esté disponible.'
+    if (pedido === numeroPedido) {
+      error.value = 'Error: no se pudieron cargar los clientes. Verificá que el servidor esté disponible.'
+    }
   } finally {
-    cargando.value = false
+    if (pedido === numeroPedido) cargando.value = false
   }
 }
 
 onMounted(cargarClientes)
-const filtroBusqueda = ref('')
-const clienteSeleccionado = ref<Cliente | null>(null)
+
+// Se espera un momento a que termine de escribir antes de consultar al servidor
+let temporizador: ReturnType<typeof setTimeout> | undefined
+watch(filtroBusqueda, () => {
+  clearTimeout(temporizador)
+  temporizador = setTimeout(cargarClientes, 350)
+})
+onBeforeUnmount(() => clearTimeout(temporizador))
 
 const mostrarModal = ref(false)
 const clienteParaEditar = ref<Cliente | null>(null)
+const guardando = ref(false)
 
-// Filtrado en tiempo real por CUIL o nombre
-const clientesFiltrados = computed(() => {
-  const busqueda = filtroBusqueda.value.toLowerCase().trim()
-  if (!busqueda) return listaClientes.value
-
-  return listaClientes.value.filter(
-    (c) => c.cuil.toLowerCase().includes(busqueda) || c.nombre.toLowerCase().includes(busqueda)
-  )
-})
-
-// CUILs ya cargados, para que el modal avise si se intenta repetir uno
+// CUILs que se ven en pantalla, para avisar rápido en el modal si se intenta repetir uno
+// (la comprobación definitiva la hace guardarCliente consultando al servidor)
 const cuilsExistentes = computed(() => listaClientes.value.map((c) => c.cuil))
-
-function seleccionarFila(cliente: Cliente) {
-  if (clienteSeleccionado.value?.cliente_id === cliente.cliente_id) {
-    clienteSeleccionado.value = null
-  } else {
-    clienteSeleccionado.value = cliente
-  }
-}
 
 function abrirModalCrear() {
   clienteParaEditar.value = null
   mostrarModal.value = true
 }
 
-function abrirModalEditar() {
-  if (!clienteSeleccionado.value) return
-  clienteParaEditar.value = { ...clienteSeleccionado.value }
+function abrirModalEditar(cliente: Cliente) {
+  clienteParaEditar.value = { ...cliente }
   mostrarModal.value = true
 }
 
@@ -67,22 +70,30 @@ function cerrarModal() {
 }
 
 async function guardarCliente(datos: Cliente | NuevoCliente) {
+  if (guardando.value) return // un solo guardado a la vez: el botón queda inactivo después del primer clic
+  guardando.value = true
   try {
-    if ('cliente_id' in datos && datos.cliente_id) {
-      // Editar: PUT
-      const actualizado = await actualizarCliente(datos as Cliente)
-      const index = listaClientes.value.findIndex((c) => c.cliente_id === actualizado.cliente_id)
-      if (index !== -1) listaClientes.value[index] = actualizado
-      clienteSeleccionado.value = actualizado
+    const idActual = 'cliente_id' in datos ? datos.cliente_id : undefined
+
+    // El CUIL no se puede repetir: se consulta al servidor, no solo a lo que hay en pantalla
+    const repetido = await buscarClientePorCuil(datos.cuil)
+    if (repetido && repetido.cliente_id !== idActual) {
+      avisoError(`Ya existe un cliente con el CUIL ${datos.cuil} (${repetido.nombre}).`, 'CUIL repetido')
+      return
+    }
+
+    if (idActual) {
+      await actualizarCliente(datos as Cliente) // Editar: PUT
     } else {
-      // Crear: POST
-      const nuevo = await crearCliente(datos as NuevoCliente)
-      listaClientes.value.push(nuevo)
+      await crearCliente(datos as NuevoCliente) // Crear: POST
     }
     cerrarModal()
+    await cargarClientes()
   } catch (err) {
     console.error(err)
     avisoError(textoError(err), 'No se pudo guardar el cliente')
+  } finally {
+    guardando.value = false
   }
 }
 </script>
@@ -97,18 +108,6 @@ async function guardarCliente(datos: Cliente | NuevoCliente) {
       </div>
 
       <div class="d-flex gap-2">
-        <!-- Botón Editar -->
-        <button
-          class="btn btn-outline-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
-          :disabled="!clienteSeleccionado"
-          @click="abrirModalEditar"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325"/>
-          </svg>
-          <span>Editar Seleccionado</span>
-        </button>
-
         <!-- Botón Nuevo Cliente -->
         <button class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold" @click="abrirModalCrear">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -143,7 +142,7 @@ async function guardarCliente(datos: Cliente | NuevoCliente) {
     </div>
 
     <!-- Estado de carga / error -->
-    <div v-if="cargando" class="text-center py-5 text-muted">Cargando clientes...</div>
+    <div v-if="cargando && listaClientes.length === 0" class="text-center py-5 text-muted">Cargando clientes...</div>
     <div v-else-if="error" class="alert alert-danger">{{ error }}</div>
 
     <!-- Tabla -->
@@ -156,29 +155,29 @@ async function guardarCliente(datos: Cliente | NuevoCliente) {
               <th scope="col" class="py-3">Nombre / Razón Social</th>
               <th scope="col" class="py-3">Teléfono</th>
               <th scope="col" class="py-3">Condición IVA</th>
-              <th scope="col" class="py-3 pe-3">Estado</th>
+              <th scope="col" class="py-3">Estado</th>
+              <th scope="col" class="py-3 pe-3 text-end">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="cliente in clientesFiltrados"
-              :key="cliente.cliente_id"
-              :class="{ 'fila-seleccionada': clienteSeleccionado?.cliente_id === cliente.cliente_id }"
-              style="cursor: pointer;"
-              @click="seleccionarFila(cliente)"
-            >
+            <tr v-for="cliente in listaClientes" :key="cliente.cliente_id">
               <td class="ps-3 fw-bold">{{ cliente.cuil }}</td>
               <td class="fw-semibold">{{ cliente.nombre }}</td>
               <td class="text-secondary">{{ cliente.telefono }}</td>
               <td><span class="badge badge-rubro font-monospace">{{ cliente.condicion_iva }}</span></td>
-              <td class="pe-3">
+              <td>
                 <span class="badge" :class="cliente.estado === 'Activo' ? 'bg-success' : 'bg-danger'">
                   {{ cliente.estado }}
                 </span>
               </td>
+              <td class="pe-3 text-end">
+                <button class="btn btn-sm btn-outline-coralon fw-semibold" type="button" @click="abrirModalEditar(cliente)">
+                  Editar
+                </button>
+              </td>
             </tr>
-            <tr v-if="clientesFiltrados.length === 0">
-              <td colspan="5" class="text-center py-5 text-muted">
+            <tr v-if="listaClientes.length === 0">
+              <td colspan="6" class="text-center py-5 text-muted">
                 No se encontraron clientes que coincidan con la búsqueda.
               </td>
             </tr>
@@ -191,6 +190,7 @@ async function guardarCliente(datos: Cliente | NuevoCliente) {
       :mostrar="mostrarModal"
       :cliente-a-editar="clienteParaEditar"
       :cuils-existentes="cuilsExistentes"
+      :guardando="guardando"
       @cerrar="cerrarModal"
       @guardar="guardarCliente"
     />
@@ -254,12 +254,4 @@ async function guardarCliente(datos: Cliente | NuevoCliente) {
   padding: 0.4em 0.6em;
 }
 
-.fila-seleccionada {
-  background-color: #fff1eb !important;
-  border-left: 4px solid #b33e14;
-}
-
-.fila-seleccionada td {
-  background-color: #fff1eb !important;
-}
 </style>

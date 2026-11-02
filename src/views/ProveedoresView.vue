@@ -5,7 +5,7 @@ import type { Proveedor, NuevoProveedor } from '../types/proveedor'
 import { obtenerProveedores, crearProveedor, actualizarProveedor, relacionMultipleDisponible } from '../services/proveedoresService'
 import type { ProductoProveedor } from '../services/productosService'
 import { obtenerCatalogoProductosProveedor } from '../services/proveedoresService'
-import { mensajeErrorApi } from '../utils/erroresApi'
+import { mensajeErrorApi, erroresFormularioApi } from '../utils/erroresApi'
 import ModalProveedor from '../components/ModalProveedor.vue'
 
 const listaProveedores = ref<Proveedor[]>([])
@@ -14,6 +14,7 @@ const cargando = ref(false)
 const guardando = ref(false)
 const mensajeError = ref('')
 const errorGuardado = ref('')
+const erroresCampos = ref<Record<string, string>>({})
 const mensajeExito = ref('')
 const filtroBusqueda = ref('')
 const mostrarModal = ref(false)
@@ -71,6 +72,7 @@ async function abrirModalCrear() {
   if (mensajeError.value || !relacionMultipleDisponible.value) return
   proveedorParaEditar.value = null
   errorGuardado.value = ''
+  erroresCampos.value = {}
   mostrarModal.value = true
 }
 
@@ -78,6 +80,7 @@ function abrirModalEditar(proveedor: Proveedor) {
   if (cargando.value || guardando.value || !relacionMultipleDisponible.value) return
   proveedorParaEditar.value = { ...proveedor, productos: [...proveedor.productos] }
   errorGuardado.value = ''
+  erroresCampos.value = {}
   mostrarModal.value = true
 }
 
@@ -91,11 +94,12 @@ async function guardarProveedor(datos: NuevoProveedor) {
   if (guardando.value) return
   const cuit = datos.cuit.replace(/[-\s]/g, '')
   if (listaProveedores.value.some(proveedor => proveedor.proveedor_id !== proveedorParaEditar.value?.proveedor_id && proveedor.cuit.replace(/[-\s]/g, '') === cuit)) {
-    errorGuardado.value = 'Ya existe un proveedor con ese CUIT.'
+    erroresCampos.value = { cuit: 'Ya existe un proveedor con ese CUIT.' }
     return
   }
   guardando.value = true
   errorGuardado.value = ''
+  erroresCampos.value = {}
   mensajeExito.value = ''
   try {
     const id = proveedorParaEditar.value?.proveedor_id
@@ -110,7 +114,15 @@ async function guardarProveedor(datos: NuevoProveedor) {
     mostrarModal.value = false
     proveedorParaEditar.value = null
   } catch (error) {
-    errorGuardado.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error))
+    const resultado = erroresFormularioApi(error, ruta => {
+      if (['nombre', 'apellido', 'cuit', 'email', 'telefono', 'direccion', 'productos'].includes(ruta)) return ruta
+      const producto = /^productos\.(\d+)\.(precio_compra|producto_id)$/.exec(ruta)
+      if (producto) return producto[2] === 'precio_compra' ? 'precio.' + datos.productos[Number(producto[1])] : 'productos'
+      if (ruta.startsWith('productos.')) return 'productos'
+      return undefined
+    })
+    errorGuardado.value = resultado.general
+    erroresCampos.value = resultado.campos
   } finally {
     guardando.value = false
   }
@@ -275,7 +287,7 @@ onMounted(cargarProveedores)
 
     <ModalProveedor
       :mostrar="mostrarModal"
-      :proveedor-a-editar="proveedorParaEditar" :productos="productos" :guardando="guardando" :error="errorGuardado"
+      :proveedor-a-editar="proveedorParaEditar" :productos="productos" :guardando="guardando" :error="errorGuardado" :errores-campos="erroresCampos" @limpiar-error="campo => { delete erroresCampos[campo] }"
       @cerrar="cerrarModal"
       @guardar="guardarProveedor"
     />

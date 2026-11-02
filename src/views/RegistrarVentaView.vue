@@ -39,6 +39,8 @@ const busquedaSinResultado = ref(false)
 function limpiarCuilBuscado() {
   cuilBuscado.value = cuilBuscado.value.replace(/\D/g, '').slice(0, 11)
   busquedaSinResultado.value = false
+  // Al modificar el número, el cliente anterior ya no corresponde: desaparece su nombre
+  clienteEncontrado.value = null
 }
 
 // La lupa se habilita recién cuando el CUIL está completo
@@ -80,16 +82,35 @@ const items = ref<ItemVenta[]>([])
 const busquedaProducto = ref('')
 const mostrarSugerencias = ref(false)
 
-// Lista de coincidencias en vivo, a medida que se escribe
+// Para comparar sin mayúsculas ni tildes: "ladrillo" encuentra "Ladrillo", "hormigon" encuentra "Hormigón"
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+// Lista de coincidencias en vivo, a medida que se escribe.
+// Cada palabra escrita tiene que estar en el nombre, en cualquier orden.
 const sugerencias = computed<ProductoVenta[]>(() => {
-  const termino = busquedaProducto.value.trim().toLowerCase()
-  if (!termino) return []
-  return productosDisponibles.value.filter((p) => p.nombre.toLowerCase().includes(termino)).slice(0, 6)
+  const palabras = normalizar(busquedaProducto.value).split(/\s+/).filter(Boolean)
+  if (palabras.length === 0) return []
+  return productosDisponibles.value
+    .filter((p) => {
+      const nombre = normalizar(p.nombre)
+      return palabras.every((palabra) => nombre.includes(palabra))
+    })
+    .slice(0, 20)
 })
 
 function agregarProducto(producto: ProductoVenta) {
+  if (producto.stock < 1) {
+    avisoError(`"${producto.nombre}" no tiene stock disponible.`, 'Sin stock')
+    return
+  }
   const existente = items.value.find((i) => i.productoId === producto.producto_id)
   if (existente) {
+    if (existente.cantidad + 1 > producto.stock) {
+      avisoError(`Solo hay ${producto.stock} unidades de "${producto.nombre}" en stock.`, 'Stock insuficiente')
+      return
+    }
     existente.cantidad += 1
   } else {
     items.value.push({
@@ -98,11 +119,22 @@ function agregarProducto(producto: ProductoVenta) {
       nombre: producto.nombre,
       cantidad: 1,
       precioUnitario: producto.preciounitario,
+      stock: producto.stock,
     })
   }
   busquedaProducto.value = ''
   mostrarSugerencias.value = false
-  
+}
+
+// La cantidad es un número entero, mínimo 1 y como máximo el stock actual del producto
+function corregirCantidad(item: ItemVenta) {
+  let cantidad = Math.floor(Number(item.cantidad))
+  if (!Number.isFinite(cantidad) || cantidad < 1) cantidad = 1
+  if (cantidad > item.stock) {
+    avisoError(`Solo hay ${item.stock} unidades de "${item.nombre}" en stock.`, 'Stock insuficiente')
+    cantidad = item.stock
+  }
+  item.cantidad = cantidad
 }
 function ocultarSugerenciasConDelay() {
   setTimeout(() => {
@@ -127,6 +159,21 @@ const metodoPago = ref(METODOS_PAGO[0])
 
 const guardando = ref(false)
 
+// El botón "Generar orden de venta" queda inactivo hasta que todo esté en orden
+const cantidadesValidas = computed(() =>
+  items.value.every((i) => Number.isInteger(i.cantidad) && i.cantidad >= 1 && i.cantidad <= i.stock)
+)
+
+const faltaParaGenerar = computed(() => {
+  if (!clienteEncontrado.value) return 'Buscá un cliente por CUIL.'
+  if (clienteEncontrado.value.estado !== 'Activo') return 'El cliente está dado de baja.'
+  if (items.value.length === 0) return 'Agregá al menos un producto.'
+  if (!cantidadesValidas.value) return 'Revisá las cantidades: mínimo 1 y hasta el stock disponible.'
+  return ''
+})
+
+const puedeGenerar = computed(() => faltaParaGenerar.value === '' && !guardando.value)
+
 async function generarOrdenVenta() {
   if (!clienteEncontrado.value) {
     avisoError('Debe seleccionar un cliente para generar la orden de venta.', 'Faltan datos')
@@ -138,6 +185,10 @@ async function generarOrdenVenta() {
   }
   if (items.value.length === 0) {
     avisoError('Debe agregar al menos un producto a la orden de venta.', 'Faltan datos')
+    return
+  }
+  if (!cantidadesValidas.value) {
+    avisoError('Las cantidades deben ser enteras, de 1 hasta el stock disponible.', 'Cantidad inválida')
     return
   }
 
@@ -247,7 +298,9 @@ async function generarOrdenVenta() {
                 class="form-control form-control-sm"
                 placeholder="Buscar producto por nombre..."
                 @focus="mostrarSugerencias = true"
-                @blur="ocultarSugerenciasConDelay"              />
+                @input="mostrarSugerencias = true"
+                @blur="ocultarSugerenciasConDelay"
+              />
 
               <!-- Lista de sugerencias en vivo -->
               <ul
@@ -262,7 +315,9 @@ async function generarOrdenVenta() {
                   @mousedown.prevent="agregarProducto(producto)"
                 >
                   <span>{{ producto.nombre }}</span>
-                  <span class="text-muted small">${{ producto.preciounitario.toLocaleString('es-AR') }}</span>
+                  <span class="small" :class="producto.stock < 1 ? 'text-danger' : 'text-muted'">
+                    {{ producto.stock < 1 ? 'Sin stock' : `Stock: ${producto.stock}` }} · ${{ producto.preciounitario.toLocaleString('es-AR') }}
+                  </span>
                 </li>
               </ul>
 
@@ -280,8 +335,8 @@ async function generarOrdenVenta() {
                 <tr>
                   <th class="ps-3">Producto</th>
                   <th>Cant.</th>
-                  <th>Precio Unit.</th>
-                  <th>Subtotal</th>
+                  <th>Precio unitario</th>
+                  <th>Precio total</th>
                   <th class="pe-3"></th>
                 </tr>
               </thead>
@@ -289,7 +344,16 @@ async function generarOrdenVenta() {
                 <tr v-for="item in items" :key="item.id">
                   <td class="ps-3">{{ item.nombre }}</td>
                   <td style="width: 90px;">
-                    <input v-model.number="item.cantidad" type="number" min="1" class="form-control form-control-sm" />
+                    <input
+                      v-model.number="item.cantidad"
+                      type="number"
+                      min="1"
+                      :max="item.stock"
+                      step="1"
+                      class="form-control form-control-sm"
+                      @change="corregirCantidad(item)"
+                    />
+                    <div class="text-muted" style="font-size: 0.7rem;">máx. {{ item.stock }}</div>
                   </td>
                   <td>${{ item.precioUnitario.toLocaleString('es-AR') }}</td>
                   <td class="fw-bold">${{ subtotalItem(item).toLocaleString('es-AR') }}</td>
@@ -333,9 +397,10 @@ async function generarOrdenVenta() {
               <option v-for="m in METODOS_PAGO" :key="m" :value="m">{{ m }}</option>
             </select>
 
-            <button class="btn btn-coralon w-100 fw-semibold" type="button" :disabled="guardando" @click="generarOrdenVenta">
+            <button class="btn btn-coralon w-100 fw-semibold" type="button" :disabled="!puedeGenerar" @click="generarOrdenVenta">
               Generar orden de venta
             </button>
+            <div v-if="faltaParaGenerar" class="text-muted small mt-2">{{ faltaParaGenerar }}</div>
           </div>
         </div>
       </div>
@@ -359,9 +424,15 @@ async function generarOrdenVenta() {
   color: #f5f5f5;
 }
 .table-dark-custom th {
+  background-color: #231f1d;
   color: #ffffff;
   font-weight: 600;
   font-size: 0.85rem;
+}
+.btn-coralon:disabled {
+  background-color: #d1cfcc;
+  border-color: #d1cfcc;
+  color: #7a7672;
 }
 .sugerencias-lista {
   top: 100%;

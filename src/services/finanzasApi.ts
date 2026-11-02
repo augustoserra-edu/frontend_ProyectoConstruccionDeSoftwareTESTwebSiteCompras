@@ -1,11 +1,10 @@
 import axios, { isAxiosError } from 'axios'
-import api from '../lib/api'
+import api, { API_BASE_URL, manejarSesionExpirada } from '../lib/api'
 
-// Cliente HTTP propio de Finanzas: reutiliza la URL base de `lib/api.ts` (sin
-// modificarlo, porque lo comparte Proveedores) y agrega el token JWT guardado
-// en localStorage bajo la clave `access_token`.
+// Cliente HTTP propio de Finanzas: reutiliza la URL base de `lib/api.ts`
+// y agrega el token JWT guardado en localStorage bajo la clave `access_token`.
 const finanzasApi = axios.create({
-  baseURL: api.defaults.baseURL,
+  baseURL: API_BASE_URL,
   timeout: api.defaults.timeout,
   headers: {
     'Content-Type': 'application/json',
@@ -20,6 +19,16 @@ finanzasApi.interceptors.request.use((config) => {
   }
   return config
 })
+
+finanzasApi.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      manejarSesionExpirada()
+    }
+    return Promise.reject(error)
+  }
+)
 
 export default finanzasApi
 
@@ -68,7 +77,7 @@ export function mensajeDeError(error: unknown): string {
     }
     const { status, data } = error.response
     if (status === 401) {
-      return 'No hay sesión iniciada o el token venció. Guardá un token válido en localStorage con la clave "access_token".'
+      return ''
     }
     if (status === 403) {
       return 'No tenés permisos para realizar esta acción.'

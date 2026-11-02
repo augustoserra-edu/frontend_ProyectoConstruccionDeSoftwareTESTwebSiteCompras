@@ -297,3 +297,24 @@ test('Los límites de contacto exigen 11 dígitos de CUIT y hasta 14 caracteres 
     assert.equal(v.validarProveedor({ ...base, telefono: '+' + '1'.repeat(largo - 1) }, [5]) === '', largo <= 14)
   }
 })
+
+test('supplier validation returns every invalid field in a single submit', async () => {
+  const { validarCamposProveedor } = await import('../src/utils/validacionesCompras.ts')
+  const errors = validarCamposProveedor({ nombre: '', apellido: '', cuit: '123', email: 'incorrecto', telefono: 'abc', direccion: 'x'.repeat(201), productos: [] }, [])
+  assert.deepEqual(Object.keys(errors).sort(), ['apellido', 'cuit', 'direccion', 'email', 'nombre', 'productos', 'telefono'])
+  assert.match(errors.cuit, /11 dígitos/)
+})
+
+test('API field errors retain nested row paths and separate general failures', async () => {
+  const { erroresFormularioApi } = await import('../src/utils/erroresApi.ts')
+  const error = new axios.AxiosError('Invalid', 'ERR_BAD_REQUEST', undefined, undefined, {
+    status: 400, data: { detalles: [{ cantidad: ['Debe ser mayor que cero.'] }, { precio_unitario: ['Precio inválido.'] }], non_field_errors: ['Orden no editable.'] }
+  })
+  assert.deepEqual(erroresFormularioApi(error, path => path.startsWith('detalles.') ? path : undefined), {
+    campos: { 'detalles.0.cantidad': 'Debe ser mayor que cero.', 'detalles.1.precio_unitario': 'Precio inválido.' },
+    general: 'Orden no editable.'
+  })
+  assert.deepEqual(erroresFormularioApi(new axios.AxiosError('Network Error'), path => path), {
+    campos: {}, general: 'No se pudo conectar con el servidor. Intentá nuevamente.'
+  })
+})

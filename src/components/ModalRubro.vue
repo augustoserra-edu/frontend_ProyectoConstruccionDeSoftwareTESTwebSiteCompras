@@ -56,8 +56,9 @@ function guardarRubro() {
               <div v-if="error" class="alert alert-danger py-2 small">{{ error }}</div>
 
               <div class="mb-3">
-                <label class="form-label fw-semibold text-dark">Nombre *</label>
+                <label for="rubroNombre" class="form-label fw-semibold text-dark">Nombre *</label>
                 <input
+                  id="rubroNombre"
                   v-model="formulario.nombre"
                   type="text"
                   maxlength="100"
@@ -68,8 +69,9 @@ function guardarRubro() {
               </div>
 
               <div>
-                <label class="form-label fw-semibold text-dark">Descripción</label>
+                <label for="rubroDescripcion" class="form-label fw-semibold text-dark">Descripción</label>
                 <input
+                  id="rubroDescripcion"
                   v-model="formulario.descripcion"
                   type="text"
                   maxlength="200"

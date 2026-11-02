@@ -119,6 +119,7 @@ async function confirmarReposicion(datos: {
           type="button"
           class="btn btn-coralon d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold shadow-sm w-100 w-md-auto"
           :disabled="!productoSeleccionado"
+          title="Registrar el ingreso de stock al inventario"
           @click="abrirModalReponer"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -144,10 +145,13 @@ async function confirmarReposicion(datos: {
                 </svg>
               </span>
               <input
+                id="filtroBusquedaCargarStock"
                 v-model="filtroBusqueda"
                 type="text"
                 class="form-control border-start-0 ps-2"
                 placeholder="Buscar por código o nombre del producto..."
+                title="Seleccionar el producto a reponer"
+                aria-label="Buscar producto por código o nombre"
               />
             </div>
           </div>
@@ -165,6 +169,7 @@ async function confirmarReposicion(datos: {
       <button
         type="button"
         class="btn btn-sm btn-outline-danger fw-semibold flex-shrink-0"
+        title="Volver a consultar los productos del inventario"
         @click="cargarListaProductos"
       >
         Reintentar
@@ -181,12 +186,12 @@ async function confirmarReposicion(datos: {
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th scope="col" class="ps-3 py-2" style="width: 45px;">Sel.</th>
+              <th scope="col" class="ps-3 py-2" style="width: 45px;" title="Seleccionar el producto a reponer">Sel.</th>
               <th scope="col" class="py-2" style="width: 80px;">Código</th>
-              <th scope="col" class="py-2">Producto</th>
+              <th scope="col" class="py-2" title="Seleccionar el producto a reponer">Producto</th>
               <th scope="col" class="py-2 text-center">Stock Mín.</th>
-              <th scope="col" class="py-2 text-center">Stock Actual</th>
-              <th scope="col" class="pe-3 py-2 text-end d-none d-sm-table-cell">Estado</th>
+              <th scope="col" class="py-2 text-center" title="Ingresar las unidades que ingresan a stock">Stock Actual</th>
+              <th scope="col" class="pe-3 py-2 text-end d-none d-sm-table-cell" title="Detalle o referencia del ingreso de mercadería">Estado</th>
             </tr>
           </thead>
           <tbody>
@@ -195,12 +200,16 @@ async function confirmarReposicion(datos: {
               :key="producto.id ?? producto.producto_id"
               class="fila-producto"
               :class="{ 'fila-seleccionada': (productoSeleccionado?.id ?? productoSeleccionado?.producto_id) === (producto.id ?? producto.producto_id) }"
+              title="Seleccionar el producto a reponer"
               @click="seleccionarProducto(producto)"
             >
               <td class="ps-3">
                 <input
+                  :id="'radio-producto-' + (producto.id ?? producto.producto_id)"
                   type="radio"
                   class="form-check-input"
+                  title="Seleccionar el producto a reponer"
+                  aria-label="Seleccionar este producto"
                   :checked="(productoSeleccionado?.id ?? productoSeleccionado?.producto_id) === (producto.id ?? producto.producto_id)"
                   @click.stop="seleccionarProducto(producto)"
                 />
@@ -210,31 +219,34 @@ async function confirmarReposicion(datos: {
               </td>
               <td>
                 <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
-                <div class="text-muted small text-truncate d-none d-md-block" style="max-width: 380px;">
+                <div class="text-muted small text-truncate d-none d-md-block" style="max-width: 380px;" title="Detalle o referencia del ingreso de mercadería">
                   {{ producto.descripcion }}
                 </div>
               </td>
               <td class="text-center text-muted">
                 {{ producto.stockminreposicion }} un.
               </td>
-              <td class="text-center">
+              <td class="text-center" title="Ingresar las unidades que ingresan a stock">
                 <span
                   class="fw-bold fs-6"
                   :class="producto.stockactual <= producto.stockminreposicion ? 'text-danger' : 'text-dark'"
+                  title="Ingresar las unidades que ingresan a stock"
                 >
                   {{ producto.stockactual }} un.
                 </span>
               </td>
-              <td class="pe-3 text-end d-none d-sm-table-cell">
+              <td class="pe-3 text-end d-none d-sm-table-cell" title="Detalle o referencia del ingreso de mercadería">
                 <span
                   v-if="producto.stockactual <= producto.stockminreposicion"
                   class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"
+                  title="Detalle o referencia del ingreso de mercadería"
                 >
                   Reponer Urgente
                 </span>
                 <span
                   v-else
                   class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"
+                  title="Detalle o referencia del ingreso de mercadería"
                 >
                   Stock Normal
                 </span>

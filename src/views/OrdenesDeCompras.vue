@@ -5,7 +5,7 @@ import ModalConfirmacion from '../components/ModalConfirmacion.vue'
 import ModalNuevaOrdenCompra from '../components/ModalNuevaOrdenCompra.vue'
 import ModalVerOrdenesCompra from '../components/ModalVerOrdenesCompra.vue'
 import { normalizarBusqueda } from '../utils/busqueda'
-import { mensajeErrorApi } from '../utils/erroresApi'
+import { mensajeErrorApi, erroresFormularioApi } from '../utils/erroresApi'
 import type { ProductoProveedor } from '../services/productosService'
 import { obtenerCatalogoProductosProveedor } from '../services/proveedoresService'
 import { editarOrdenCompra, actualizarEstadoCompra, claseEstadoCompra, buscarEstadoCompra, normalizarEstadoCompra, crearOrdenCompra, obtenerProveedores, etiquetaEstadoCompra, obtenerEstadosCompra, sincronizarComprasFacturadas, obtenerOrdenesCompra, presentarDetalles, presentarOrden, transicionPermitida, type OrdenCompraAPI } from '../services/comprasService'
@@ -24,6 +24,7 @@ const cargandoFacturas = ref(false)
 const catalogosListos = ref(false)
 const errorConsulta = ref('')
 const errorGuardado = ref('')
+const erroresCampos = ref<Record<string, string>>({})
 const errorEstado = ref('')
 const errorFacturas = ref('')
 const mensaje = ref('')
@@ -52,6 +53,7 @@ const nombreProveedor = (id: number) => {
   const proveedor = proveedores.value.find(p => p.proveedor_id === id)
   return proveedor ? `${proveedor.nombre} ${proveedor.apellido}` : `Proveedor #${id}`
 }
+const cuitProveedor = (id: number) => proveedores.value.find(proveedor => proveedor.proveedor_id === id)?.cuit || 'Sin CUIT'
 const nombreProducto = (id: number) => productos.value.find(p => p.id === id)?.nombre ?? `Producto #${id}`
 const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
 const fechaVisible = (valor: string) => new Date(valor).toLocaleDateString('es-AR')
@@ -113,6 +115,7 @@ async function abrirNuevaOrden() {
   await cargar()
   if (errorConsulta.value) return
   errorGuardado.value = ''
+  erroresCampos.value = {}
   mostrarNuevaOrden.value = true
 }
 
@@ -150,6 +153,7 @@ async function abrirEdicion(id: number) {
   }
   ordenAEditar.value = ordenesAPI.value.find(o => o.ordencompra_id === id) ?? null
   errorGuardado.value = ''
+  erroresCampos.value = {}
   mostrarConsultaOrdenes.value = false
   mostrarNuevaOrden.value = true
 }
@@ -158,6 +162,7 @@ async function guardarOrden(datos: NuevaOrdenCompra) {
   if (guardando.value) return
   guardando.value = true
   errorGuardado.value = ''
+  erroresCampos.value = {}
   try {
     const id = ordenAEditar.value?.ordencompra_id
     if (id && cabeceras.value.find(o => o.ordencompra_id === id)?.estado !== 'pendiente') throw new Error('Solo se pueden editar órdenes en estado Pendiente.')
@@ -168,7 +173,18 @@ async function guardarOrden(datos: NuevaOrdenCompra) {
     } else ordenesAPI.value.unshift(orden)
     mostrarNuevaOrden.value = false
     mensaje.value = `Orden #${orden.ordencompra_id} ${id ? 'actualizada' : 'creada'} correctamente.`
-  } catch (error) { errorGuardado.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error)) }
+  } catch (error) {
+    const resultado = erroresFormularioApi(error, ruta => {
+      if (ruta === 'proveedor' || ruta === 'proveedor_id') return 'proveedor'
+      if (['fecha', 'total', 'detalles'].includes(ruta)) return ruta
+      if (/^detalles\.\d+\.(producto_id|cantidad|precio_unitario|subtotal)$/.test(ruta)) return ruta
+      const detalle = /^detalles\.(\d+)/.exec(ruta)
+      if (detalle) return 'detalles.' + detalle[1] + '.producto_id'
+      return undefined
+    })
+    errorGuardado.value = resultado.general
+    erroresCampos.value = resultado.campos
+  }
   finally { guardando.value = false }
 }
 
@@ -266,6 +282,7 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
               <span class="badge" :class="claseEstadoCompra(orden.estado)">{{ etiquetaEstadoCompra(orden.estado) }}</span>
             </span>
             <span class="fw-semibold text-break">{{ nombreProveedor(orden.proveedor_id) }}</span>
+            <span class="badge badge-cuit font-monospace align-self-start mt-1">CUIT: {{ cuitProveedor(orden.proveedor_id) }}</span>
             <span class="small text-muted mt-1">Fecha: {{ fechaVisible(orden.fecha) }}</span>
             <span class="d-block border-top pt-2 mt-3 w-100">
               <span class="small text-muted d-block mb-1">Productos y cantidades</span>
@@ -286,6 +303,7 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
         <thead class="table-dark-custom"><tr>
           <th scope="col" :aria-sort="ariaOrden('numero')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('numero', 'número de orden')" @click="ordenarPor('numero')">N° Orden <span aria-hidden="true">{{ indicadorOrden('numero') }}</span></button></th>
           <th scope="col" :aria-sort="ariaOrden('proveedor')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('proveedor', 'proveedor')" @click="ordenarPor('proveedor')">Proveedor <span aria-hidden="true">{{ indicadorOrden('proveedor') }}</span></button></th>
+          <th scope="col">CUIT</th>
           <th>Productos y cantidades</th>
           <th scope="col" :aria-sort="ariaOrden('fecha')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('fecha', 'fecha')" @click="ordenarPor('fecha')">Fecha <span aria-hidden="true">{{ indicadorOrden('fecha') }}</span></button></th>
           <th>Estado</th><th class="text-end">Total</th>
@@ -294,11 +312,12 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
           <tr v-for="orden in ordenesVisibles" :key="orden.ordencompra_id" class="orden-seleccionable" @click="abrirConsulta(orden.ordencompra_id)">
             <td><button class="btn p-0 text-reset text-decoration-none" :disabled="accionesBloqueadas" @click.stop="abrirConsulta(orden.ordencompra_id)">#{{ orden.ordencompra_id }}</button></td>
             <td>{{ nombreProveedor(orden.proveedor_id) }}</td>
+            <td class="text-nowrap"><span class="badge badge-cuit font-monospace">{{ cuitProveedor(orden.proveedor_id) }}</span></td>
             <td><div v-for="detalle in detalles.filter(d => d.ordencompra_id === orden.ordencompra_id)" :key="detalle.ordencompradetalle_id">{{ nombreProducto(detalle.producto_id) }} × {{ detalle.cantidad }}</div></td>
             <td>{{ fechaVisible(orden.fecha) }}</td><td><span class="badge" :class="claseEstadoCompra(orden.estado)">{{ etiquetaEstadoCompra(orden.estado) }}</span></td><td class="text-end text-nowrap">{{ moneda(orden.total) }}</td>
           </tr>
-          <tr v-if="cargando"><td colspan="6" class="text-center p-4">Cargando órdenes…</td></tr>
-          <tr v-else-if="!errorConsulta && !ordenesFiltradas.length"><td colspan="6" class="text-center p-4 text-muted">{{ filtroBusqueda || filtroEstado ? 'No hay órdenes que coincidan con los filtros.' : 'No hay órdenes registradas.' }}</td></tr>
+          <tr v-if="cargando"><td colspan="7" class="text-center p-4">Cargando órdenes…</td></tr>
+          <tr v-else-if="!errorConsulta && !ordenesFiltradas.length"><td colspan="7" class="text-center p-4 text-muted">{{ filtroBusqueda || filtroEstado ? 'No hay órdenes que coincidan con los filtros.' : 'No hay órdenes registradas.' }}</td></tr>
         </tbody>
       </table>
     </div></div>
@@ -306,12 +325,18 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
       <span class="text-muted small" role="status">Mostrando {{ ordenesVisibles.length }} de {{ ordenesFiltradas.length }} órdenes</span>
       <button v-if="hayMasOrdenes" type="button" class="btn btn-outline-coralon" :disabled="accionesBloqueadas" @click="cargarMas">Cargar más</button>
     </div>
-    <ModalNuevaOrdenCompra :orden-a-editar="ordenAEditar" :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
+    <ModalNuevaOrdenCompra :orden-a-editar="ordenAEditar" :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :errores-campos="erroresCampos" @limpiar-error="campo => { delete erroresCampos[campo] }" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
     <ModalVerOrdenesCompra @editar="abrirEdicion" :mostrar="mostrarConsultaOrdenes" :orden-inicial-id="ordenConsultaId" :ordenes="cabeceras" :detalles="detalles" :proveedores="proveedores" :productos="productos" :estados="estados" :facturas="facturas" :cargando-facturas="cargandoFacturas" :error-facturas="errorFacturas" :actualizando="accionesBloqueadas" :error="errorEstado" :mensaje="mensaje" @cerrar="mostrarConsultaOrdenes = false" @cambiar-estado="cambiarEstado" @reintentar-facturas="cargarFacturas" />
     <ModalConfirmacion v-if="mensajeConfirmacion" :mensaje="mensajeConfirmacion" @resolver="resolverCambioEstado" />
   </div>
 </template>
 <style scoped>
+.badge-cuit {
+  background-color: #332d2a;
+  color: #c9881e;
+  font-weight: 500;
+  padding: 0.4em 0.6em;
+}
 .orden-seleccionable { cursor: pointer; }
 .orden-tarjeta { border: 1px solid #e4dfdc; color: inherit; font: inherit; }
 .orden-tarjeta:hover:not(:disabled) { border-color: #b33e14; background-color: #fff8f4; }

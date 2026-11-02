@@ -76,7 +76,7 @@ test('CP-P07: CUIT duplicado bloquea la API; errores se muestran y permiten rein
   modal.vm.$emit('guardar', proveedor)
   await flushPromises()
   expect(proveedores.crearProveedor).not.toHaveBeenCalled()
-  expect(modal.props('error')).toContain('Ya existe')
+  expect(modal.props('erroresCampos').cuit).toContain('Ya existe')
   vi.mocked(proveedores.crearProveedor).mockRejectedValueOnce(new Error('Error al guardar'))
   modal.vm.$emit('guardar', { ...proveedor, cuit: '20999999991' })
   await flushPromises()

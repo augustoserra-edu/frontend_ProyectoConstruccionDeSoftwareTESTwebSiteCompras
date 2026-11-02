@@ -6,6 +6,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['tests/**/*.test.{mjs,ts}'],
+    // Esta suite de upstream usa node:test y se ejecuta con node --test.
+    exclude: ['tests/finanzas.test.mjs'],
     setupFiles: ['tests/setup.ts'],
     coverage: {
       provider: 'v8',

@@ -122,6 +122,7 @@ async function eliminarSeleccionado() {
         <button
           class="btn btn-outline-danger fw-semibold px-3"
           :disabled="!rubroSeleccionado"
+          title="Eliminar el rubro seleccionado del catálogo"
           @click="eliminarSeleccionado"
         >
           Eliminar
@@ -129,11 +130,16 @@ async function eliminarSeleccionado() {
         <button
           class="btn btn-outline-coralon fw-semibold px-3"
           :disabled="!rubroSeleccionado"
+          title="Editar los datos del rubro seleccionado"
           @click="abrirModalEditar"
         >
           Editar Seleccionado
         </button>
-        <button class="btn btn-coralon fw-semibold px-3" @click="abrirModalCrear">
+        <button
+          class="btn btn-coralon fw-semibold px-3"
+          title="Crear una nueva categoría de productos"
+          @click="abrirModalCrear"
+        >
           Nuevo Rubro
         </button>
       </div>
@@ -144,10 +150,13 @@ async function eliminarSeleccionado() {
         <div class="row">
           <div class="col-md-6">
             <input
+              id="filtroBusquedaRubros"
               v-model="filtroBusqueda"
               type="text"
               class="form-control custom-search"
               placeholder="Buscar por Nombre o Descripción..."
+              title="Nombre identificador de la categoría"
+              aria-label="Buscar por nombre o descripción"
             />
           </div>
         </div>
@@ -160,7 +169,7 @@ async function eliminarSeleccionado() {
           <thead class="table-dark-custom">
             <tr>
               <th scope="col" class="ps-3 py-3">ID</th>
-              <th scope="col" class="py-3">Nombre</th>
+              <th scope="col" class="py-3" title="Nombre identificador de la categoría">Nombre</th>
               <th scope="col" class="py-3 pe-3">Descripción</th>
             </tr>
           </thead>
@@ -170,10 +179,11 @@ async function eliminarSeleccionado() {
               :key="rubro.id"
               :class="{ 'fila-seleccionada': rubroSeleccionado?.id === rubro.id }"
               style="cursor: pointer;"
+              title="Haga clic para seleccionar este rubro y habilitar las acciones de editar o eliminar"
               @click="seleccionarFila(rubro)"
             >
               <td class="ps-3 fw-bold">{{ rubro.id }}</td>
-              <td class="fw-semibold">{{ rubro.nombre }}</td>
+              <td class="fw-semibold" title="Nombre identificador de la categoría">{{ rubro.nombre }}</td>
               <td class="text-secondary small pe-3">{{ rubro.descripcion }}</td>
             </tr>
             <tr v-if="cargando">

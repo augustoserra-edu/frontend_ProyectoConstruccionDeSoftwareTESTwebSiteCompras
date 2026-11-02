@@ -12,6 +12,7 @@ interface Props {
   mostrar: boolean
   guardando: boolean
   error: string
+  erroresCampos?: Record<string, string>
   proveedores: Proveedor[]
   productos: ProductoProveedor[]
 }
@@ -19,6 +20,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'cerrar'): void
+  (e: 'limpiar-error', campo: string): void
   (e: 'guardar', orden: NuevaOrdenCompra): void
 }>()
 
@@ -39,7 +41,22 @@ function obtenerFechaActual() {
 const fecha = ref(obtenerFechaActual())
 let siguienteClave = 1
 const items = ref<(NuevoOrdenCompraDetalle & { clave: number; busqueda: string })[]>([])
-const errorValidacion = ref('')
+const erroresLocales = ref<Record<string, string>>({})
+const errores = computed(() => ({ ...props.erroresCampos, ...erroresLocales.value }))
+function limpiarError(evento: Event) {
+  const campo = (evento.target as HTMLElement).dataset.campoError
+  if (!campo) return
+  const relacionados = [campo, 'total']
+  const fila = /^detalles\.(\d+)\./.exec(campo)
+  if (fila) {
+    relacionados.push('detalles.' + fila[1] + '.subtotal')
+    if (campo.endsWith('.producto_id')) relacionados.push('detalles.' + fila[1] + '.precio_unitario')
+  }
+  for (const relacionado of relacionados) {
+    delete erroresLocales.value[relacionado]
+    emit('limpiar-error', relacionado)
+  }
+}
 const moneda = (valor: number) => Number.isFinite(valor) ? valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : 'Sin precio de compra'
 const subtotal = (item: NuevoOrdenCompraDetalle) => Math.round(item.cantidad * item.preciounitario * 100) / 100
 const total = computed(() => Math.round(items.value.reduce((suma, item) => suma + subtotal(item), 0) * 100) / 100)
@@ -78,7 +95,14 @@ const productosPorItem = computed(() => items.value.map(item => {
   return { coincidencias, seleccionadoFueraDelFiltro }
 }))
 
+function quitarItem(index: number) {
+  items.value.splice(index, 1)
+  erroresLocales.value = {}
+  Object.keys(props.erroresCampos ?? {}).forEach(campo => emit('limpiar-error', campo))
+}
 function agregarItem() {
+  delete erroresLocales.value.detalles
+  emit('limpiar-error', 'detalles')
   if (!proveedorSeleccionado.value || items.value.length >= productosDisponibles.value.length) return
   items.value.push({ clave: siguienteClave++, busqueda: '', producto_id: 0, cantidad: 1, preciounitario: 0 })
 }
@@ -111,20 +135,30 @@ function guardar() {
   if (props.guardando) return
   if (!props.ordenAEditar) items.value.forEach(actualizarPrecio)
   if (!props.ordenAEditar) fecha.value = obtenerFechaActual()
-  errorValidacion.value = ''
-  const productosElegidos = items.value.filter(item => item.producto_id !== 0).map(item => item.producto_id)
-  if (new Set(productosElegidos).size !== productosElegidos.length) {
-    errorValidacion.value = 'Cada producto puede aparecer una sola vez. Modificá la cantidad en su fila para pedir más unidades.'
-    return
-  }
-  if (!proveedorSeleccionado.value || !proveedorId.value || !fecha.value || !items.value.length || items.value.some(item =>
-    !productosDisponibles.value.some(producto => producto.producto_id === item.producto_id)
-    || !Number.isSafeInteger(item.cantidad) || item.cantidad <= 0 || item.cantidad > CANTIDAD_MAXIMA
-    || !importeValido(item.preciounitario) || !importeValido(subtotal(item))
-  ) || !importeValido(total.value)) {
-    errorValidacion.value = 'Revisá el proveedor y los productos. Las cantidades deben ser enteros de 1 a 2147483647 y los importes no pueden superar $9.999.999.999,99.'
-    return
-  }
+  erroresLocales.value = {}
+  const fallos = erroresLocales.value
+  if (!proveedorSeleccionado.value || !proveedorId.value) fallos.proveedor = 'Seleccioná un proveedor válido.'
+  if (!fecha.value) fallos.fecha = 'La fecha es obligatoria.'
+  if (!items.value.length) fallos.detalles = 'Agregá al menos un producto.'
+  items.value.forEach((item, index) => {
+    const campo = 'detalles.' + index + '.'
+    if (!productosDisponibles.value.some(producto => producto.producto_id === item.producto_id)) {
+      fallos[campo + 'producto_id'] = 'Seleccioná un producto disponible del proveedor.'
+    } else if (items.value.some((otro, otroIndex) => otroIndex !== index && otro.producto_id === item.producto_id)) {
+      fallos[campo + 'producto_id'] = 'Cada producto puede aparecer una sola vez. Modificá la cantidad en su fila para pedir más unidades.'
+    }
+    if (!Number.isSafeInteger(item.cantidad) || item.cantidad <= 0 || item.cantidad > CANTIDAD_MAXIMA) {
+      fallos[campo + 'cantidad'] = 'Ingresá una cantidad entera de 1 a 2147483647.'
+    }
+    if (!importeValido(item.preciounitario)) {
+      fallos[campo + 'precio_unitario'] = 'El precio de compra debe estar entre $0 y $9.999.999.999,99 y tener hasta dos decimales.'
+    }
+    if (!fallos[campo + 'cantidad'] && !fallos[campo + 'precio_unitario'] && !importeValido(subtotal(item))) {
+      fallos[campo + 'subtotal'] = 'El subtotal no puede superar $9.999.999.999,99.'
+    }
+  })
+  if (!Object.keys(fallos).length && !importeValido(total.value)) fallos.total = 'El total no puede superar $9.999.999.999,99.'
+  if (Object.keys(fallos).length || !proveedorId.value) return
   emit('guardar', {
     cabecera: { proveedor_id: proveedorId.value, fecha: fecha.value, total: total.value },
     detalles: items.value.map(({ producto_id, cantidad, preciounitario }) => ({ producto_id, cantidad, preciounitario }))
@@ -137,6 +171,8 @@ function cerrarModal() {
 
 watch(proveedorId, () => {
   items.value = []
+  erroresLocales.value = {}
+  Object.keys(props.erroresCampos ?? {}).forEach(campo => emit('limpiar-error', campo))
   const seleccionado = proveedorSeleccionado.value
   if (seleccionado && !items.value.length) agregarItem()
 }, { flush: 'sync' })
@@ -151,7 +187,7 @@ watch(
     fecha.value = obtenerFechaActual()
     items.value = props.ordenAEditar?.detalles.map(d => ({ clave: siguienteClave++, busqueda: '', producto_id: d.producto_id, cantidad: d.cantidad, preciounitario: Number(d.precio_unitario) })) ?? []
     if (props.ordenAEditar) fecha.value = props.ordenAEditar.fecha.slice(0, 10)
-    errorValidacion.value = ''
+    erroresLocales.value = {}
   },
   { immediate: true }
 )
@@ -162,13 +198,13 @@ watch(
     <div class="modal-backdrop fade show"></div>
     <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="titulo-nueva-orden" @keydown.esc="cerrarModal">
       <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
-        <form class="modal-content shadow border-0 overflow-hidden" @submit.prevent="guardar">
+        <form novalidate @input="limpiarError" @change="limpiarError" class="modal-content shadow border-0 overflow-hidden" @submit.prevent="guardar">
           <div class="modal-header modal-header-custom text-white px-4 py-3">
             <h5 id="titulo-nueva-orden" class="modal-title fw-bold">{{ ordenAEditar ? `Editar orden #${ordenAEditar.ordencompra_id}` : 'Nueva Orden de Compra' }}</h5>
             <button type="button" class="btn-close btn-close-white" aria-label="Cerrar" :disabled="guardando" @click="cerrarModal"></button>
           </div>
           <div class="modal-body p-4 bg-white">
-            <div v-if="error || errorValidacion" class="alert alert-danger" role="alert">{{ error || errorValidacion }}</div>
+            <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
             <fieldset :disabled="guardando">
               <legend class="fs-6 fw-bold">Cabecera</legend>
               <div class="row g-3 mb-4">
@@ -185,7 +221,7 @@ watch(
                     @keydown.enter.prevent
                   />
                   <label for="orden-proveedor" class="form-label fw-semibold">Proveedor</label>
-                  <select id="orden-proveedor" v-model="proveedorId" class="form-select" required>
+                  <select id="orden-proveedor" :data-campo-error="'proveedor'" :class="{ 'is-invalid': errores['proveedor'] }" :aria-invalid="!!errores['proveedor']" :aria-describedby="'error-orden-proveedor'" v-model="proveedorId" class="form-select" required>
                     <option disabled value="">Seleccionar proveedor</option>
                     <option v-if="proveedorFueraDelFiltro" :value="proveedorFueraDelFiltro.proveedor_id" hidden>
                       {{ proveedorFueraDelFiltro.nombre }} {{ proveedorFueraDelFiltro.apellido }} — {{ proveedorFueraDelFiltro.cuit }}
@@ -193,25 +229,33 @@ watch(
                     <option v-for="proveedor in proveedoresFiltrados" :key="proveedor.proveedor_id" :value="proveedor.proveedor_id">
                       {{ proveedor.nombre }} {{ proveedor.apellido }} — {{ proveedor.cuit }}
                     </option>
-                  </select>
+                  </select><p v-if="errores['proveedor']" :id="'error-orden-proveedor'" class="invalid-feedback d-block mb-0" role="alert">{{ errores['proveedor'] }}</p>
                   <small id="resultados-proveedor" class="text-muted d-block mt-1" role="status">
                     {{ proveedoresFiltrados.length === 0 ? 'No se encontraron proveedores.' : `${proveedoresFiltrados.length} proveedor(es) disponibles.` }}
                   </small>
                 </div>
                 <div class="col-md-4">
                   <label for="orden-fecha" class="form-label fw-semibold">Fecha</label>
-                  <input id="orden-fecha" :value="fecha" type="date" class="form-control" readonly aria-describedby="orden-fecha-ayuda" />
+                  <input id="orden-fecha" :data-campo-error="'fecha'" :class="{ 'is-invalid': errores['fecha'] }" :aria-invalid="!!errores['fecha']" aria-describedby="error-orden-fecha orden-fecha-ayuda" :value="fecha" type="date" class="form-control" readonly /><p v-if="errores['fecha']" :id="'error-orden-fecha'" class="invalid-feedback d-block mb-0" role="alert">{{ errores['fecha'] }}</p>
                   <small id="orden-fecha-ayuda" class="text-muted">Se asigna automáticamente el día de creación.</small>
                 </div>
               </div>
               <p v-if="!proveedorSeleccionado" id="productos-bloqueados" class="alert alert-info" role="status">
                 Seleccioná un proveedor para agregar productos a la orden.
               </p>
-              <p v-if="proveedorSeleccionado && !productosDisponibles.length" class="alert alert-info">Este proveedor no tiene productos disponibles en el catálogo.</p><fieldset :disabled="!proveedorSeleccionado" :aria-describedby="!proveedorSeleccionado ? 'productos-bloqueados' : undefined">
-              <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-                <h6 class="fw-bold mb-0">Detalle de productos</h6>
-                <button type="button" class="btn btn-sm btn-outline-coralon" :disabled="items.length >= productosDisponibles.length" @click="agregarItem">Agregar producto</button>
+              <p v-if="proveedorSeleccionado && !productosDisponibles.length" class="alert alert-info">Este proveedor no tiene productos disponibles en el catálogo.</p>
+              <div class="encabezado-productos d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h6 class="titulo-productos fw-bold mb-0 d-flex align-items-center gap-2">
+                  Detalle de productos
+                  <span class="ayuda-productos">
+                    <button type="button" class="ayuda-productos-boton" aria-label="Ayuda sobre detalle de productos" aria-describedby="tooltip-productos-orden">?</button>
+                    <span id="tooltip-productos-orden" role="tooltip" class="ayuda-productos-tooltip">Para crear una Orden para los productos que usted desea, debe de asegurarse que el Proveedor tenga los productos asociados en el modulo de Proveedores</span>
+                  </span>
+                </h6>
+                <button type="button" class="btn btn-sm btn-outline-coralon" :disabled="!proveedorSeleccionado || items.length >= productosDisponibles.length" @click="agregarItem">Agregar producto</button>
               </div>
+              <fieldset :disabled="!proveedorSeleccionado" :aria-describedby="!proveedorSeleccionado ? 'productos-bloqueados' : undefined">
+              <p v-if="errores['detalles']" :id="'error-detalles'" class="invalid-feedback d-block mb-0" role="alert">{{ errores['detalles'] }}</p>
               <div v-for="(item, index) in items" :key="item.clave" class="row g-2 align-items-end border rounded p-2 mb-3">
                 <div class="col-md-4">
                   <label :for="`buscar-producto-${item.clave}`" class="form-label small">Buscar producto</label>
@@ -226,7 +270,7 @@ watch(
                     @keydown.enter.prevent
                   />
                   <label :for="`producto-${item.clave}`" class="form-label small">Producto {{ index + 1 }}</label>
-                  <select :id="`producto-${item.clave}`" v-model="item.producto_id" class="form-select" required @change="actualizarPrecio(item)">
+                  <select :id="`producto-${item.clave}`" :data-campo-error="'detalles.' + index + '.producto_id'" :class="{ 'is-invalid': errores['detalles.' + index + '.producto_id'] }" :aria-invalid="!!errores['detalles.' + index + '.producto_id']" :aria-describedby="'error-producto-' + item.clave" v-model="item.producto_id" class="form-select" required @change="actualizarPrecio(item)">
                     <option disabled :value="0">Seleccionar producto</option>
                     <option
                       v-if="productosPorItem[index]?.seleccionadoFueraDelFiltro"
@@ -234,7 +278,7 @@ watch(
                       hidden
                     >{{ productosPorItem[index]?.seleccionadoFueraDelFiltro?.nombre }}</option>
                     <option v-for="producto in productosPorItem[index]?.coincidencias" :key="producto.producto_id" :value="producto.producto_id">#{{ producto.producto_id }} — {{ producto.nombre }}</option>
-                  </select>
+                  </select><p v-if="errores['detalles.' + index + '.producto_id']" :id="'error-producto-' + item.clave" class="invalid-feedback d-block mb-0" role="alert">{{ errores['detalles.' + index + '.producto_id'] }}</p>
                   <small :id="`resultados-producto-${item.clave}`" class="text-muted d-block mt-1" role="status">
                     {{ productosPorItem[index]?.coincidencias.length === 0 ? 'No se encontraron productos.' : `${productosPorItem[index]?.coincidencias.length} producto(s) disponibles.` }}
                   </small>
@@ -242,7 +286,7 @@ watch(
                 <div class="col-md-2">
                   <label :for="`cantidad-${item.clave}`" class="form-label small">Cantidad</label>
                   <input
-                    :id="`cantidad-${item.clave}`"
+                    :id="`cantidad-${item.clave}`" :data-campo-error="'detalles.' + index + '.cantidad'" :class="{ 'is-invalid': errores['detalles.' + index + '.cantidad'] }" :aria-invalid="!!errores['detalles.' + index + '.cantidad']" :aria-describedby="'error-cantidad-' + item.clave"
                     :value="item.cantidad || ''"
                     type="text"
                     inputmode="numeric" maxlength="10"
@@ -253,27 +297,27 @@ watch(
                     @beforeinput="bloquearCantidadNoEntera"
                     @paste="validarPegadoCantidad"
                     @input="actualizarCantidad($event, item)"
-                  />
+                  /><p v-if="errores['detalles.' + index + '.cantidad']" :id="'error-cantidad-' + item.clave" class="invalid-feedback d-block mb-0" role="alert">{{ errores['detalles.' + index + '.cantidad'] }}</p>
                 </div>
                 <div class="col-md-2">
                   <label :for="`precio-${item.clave}`" class="form-label small">Precio unitario</label>
-                  <input :id="`precio-${item.clave}`" :value="Number.isFinite(item.preciounitario) ? moneda(item.preciounitario) : 'Sin precio de compra'" type="text" readonly class="form-control bg-light" />
+                  <input :id="`precio-${item.clave}`" :data-campo-error="'detalles.' + index + '.precio_unitario'" :class="{ 'is-invalid': errores['detalles.' + index + '.precio_unitario'] }" :aria-invalid="!!errores['detalles.' + index + '.precio_unitario']" :aria-describedby="'error-precio-' + item.clave" :value="Number.isFinite(item.preciounitario) ? moneda(item.preciounitario) : 'Sin precio de compra'" type="text" readonly class="form-control bg-light" /><p v-if="errores['detalles.' + index + '.precio_unitario']" :id="'error-precio-' + item.clave" class="invalid-feedback d-block mb-0" role="alert">{{ errores['detalles.' + index + '.precio_unitario'] }}</p>
                 </div>
                 <div class="col-md-3">
                   <span class="small d-block mb-2">Subtotal</span>
-                  <span class="d-block py-2 fw-semibold">{{ moneda(subtotal(item)) }}</span>
+                  <span class="d-block py-2 fw-semibold">{{ moneda(subtotal(item)) }}</span><p v-if="errores['detalles.' + index + '.subtotal']" :id="'error-subtotal-' + item.clave" class="invalid-feedback d-block mb-0" role="alert">{{ errores['detalles.' + index + '.subtotal'] }}</p>
                 </div>
                 <div class="col-md-1">
-                  <button type="button" class="btn btn-outline-danger w-100" :aria-label="`Quitar producto ${index + 1}`" @click="items.splice(index, 1)">×</button>
+                  <button type="button" class="btn btn-outline-danger w-100" :aria-label="`Quitar producto ${index + 1}`" @click="quitarItem(index)">×</button>
                 </div>
               </div>
               </fieldset>
             </fieldset>
-            <p class="text-end fs-5 fw-bold mb-0">Total: <span class="text-coralon">{{ moneda(total) }}</span></p>
+            <p class="text-end fs-5 fw-bold mb-0">Total: <span class="text-coralon">{{ moneda(total) }}</span></p><p v-if="errores['total']" :id="'error-total'" class="invalid-feedback d-block mb-0" role="alert">{{ errores['total'] }}</p>
           </div>
           <div class="modal-footer bg-light px-4 py-3">
             <button type="button" class="btn btn-secondary px-3" :disabled="guardando" @click="cerrarModal">Cerrar</button>
-            <button type="submit" class="btn btn-coralon fw-semibold" :disabled="guardando || !proveedorSeleccionado || !items.length">
+            <button type="submit" class="btn btn-coralon fw-semibold" :disabled="guardando">
               {{ guardando ? 'Guardando…' : ordenAEditar ? 'Guardar cambios' : 'Guardar Orden' }}
             </button>
           </div>
@@ -284,6 +328,37 @@ watch(
 </template>
 
 <style scoped>
+.encabezado-productos { position: relative; }
+.titulo-productos { min-width: 0; }
+.ayuda-productos { display: inline-flex; flex-shrink: 0; }
+.ayuda-productos-boton {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.5rem; height: 1.5rem; padding: 0; border: 2px solid #231f1d;
+  border-radius: 50%; background: white; color: #231f1d; font-size: 1rem; font-weight: 800;
+  cursor: help;
+}
+.ayuda-productos-boton:focus-visible { outline: 2px solid #b33e14; outline-offset: 2px; }
+.ayuda-productos-tooltip {
+  position: absolute; top: 100%; left: 0; z-index: 5;
+  width: min(24rem, 100%); box-sizing: border-box; padding: 0.75rem 1rem;
+  white-space: normal; overflow-wrap: anywhere; text-align: left;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
+  border-radius: 0.375rem; background: #231f1d; color: white;
+  font-size: 0.875rem; font-weight: 400; line-height: 1.5;
+  visibility: hidden; opacity: 0;
+}
+.ayuda-productos:hover .ayuda-productos-tooltip,
+.ayuda-productos:focus-within .ayuda-productos-tooltip { visibility: visible; opacity: 1; }
+@media (max-width: 575.98px) {
+  .titulo-productos { width: 100%; flex-wrap: wrap; }
+  .ayuda-productos { display: contents; }
+  .ayuda-productos-boton { flex-shrink: 0; }
+  .ayuda-productos-tooltip {
+    position: static; width: 100%; flex-basis: 100%; display: none;
+  }
+  .ayuda-productos:hover .ayuda-productos-tooltip,
+  .ayuda-productos:focus-within .ayuda-productos-tooltip { display: block; }
+}
 .modal-backdrop { opacity: 0.6; }
 .modal-header-custom { background-color: #231f1d; border-bottom: 3px solid #b33e14; }
 .text-coralon { color: #b33e14; }

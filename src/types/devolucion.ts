@@ -1,6 +1,6 @@
 export type EstadoVenta = 'En proceso' | 'Confirmada' | 'Devuelta' | 'Anulada'
 
-// Qué significa cada estado de una orden de venta (se muestra en la pantalla de Devoluciones)
+// Qué significa cada estado de una orden de venta (se muestra en la pantalla de Estado orden venta)
 export const ESTADOS_VENTA: { estado: EstadoVenta; descripcion: string }[] = [
   { estado: 'En proceso', descripcion: 'La orden se generó y Finanzas todavía no la facturó.' },
   { estado: 'Confirmada', descripcion: 'Finanzas ya la facturó. Es la única que se puede devolver.' },

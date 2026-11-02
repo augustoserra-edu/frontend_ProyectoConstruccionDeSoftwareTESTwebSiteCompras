@@ -7,10 +7,12 @@ interface Props {
   mostrar: boolean
   clienteAEditar: Cliente | null
   cuilsExistentes?: string[]
+  guardando?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   cuilsExistentes: () => [],
+  guardando: false,
 })
 
 const emit = defineEmits<{
@@ -25,7 +27,7 @@ function formularioVacio(): NuevoCliente & { cliente_id?: number } {
     telefono: '',
     email: '',
     direccion: '',
-    condicion_iva: 'Consumidor Final',
+    condicion_iva: '', // sin valor por defecto: hay que elegirla
     estado: 'Activo',
   }
 }
@@ -64,12 +66,25 @@ const errorCuil = computed(() => {
   return ''
 })
 
+// Condición frente al IVA: tiene que estar elegida y ser una de las opciones válidas
+const ivaTocado = ref(false)
+const errorIva = computed(() => {
+  const iva = formulario.value.condicion_iva
+  if (!iva) return 'Seleccioná la condición frente al IVA.'
+  if (!CONDICIONES_IVA.includes(iva)) return 'La condición frente al IVA no es válida.'
+  return ''
+})
+
 function cerrarModal() {
+  if (props.guardando) return
+  ivaTocado.value = false
   emit('cerrar')
 }
 
 function guardarCliente() {
-  if (errorCuil.value) return
+  if (props.guardando) return // ya se está guardando: evita enviar el cliente dos veces
+  ivaTocado.value = true
+  if (errorCuil.value || errorIva.value) return
   emit('guardar', { ...formulario.value })
 }
 </script>
@@ -113,9 +128,17 @@ function guardarCliente() {
                 <!-- Condición IVA -->
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Condición frente al IVA *</label>
-                  <select v-model="formulario.condicion_iva" class="form-select custom-input" required>
+                  <select
+                    v-model="formulario.condicion_iva"
+                    class="form-select custom-input"
+                    :class="{ 'is-invalid': ivaTocado && errorIva }"
+                    required
+                    @change="ivaTocado = true"
+                  >
+                    <option value="" disabled>Seleccionar...</option>
                     <option v-for="op in CONDICIONES_IVA" :key="op" :value="op">{{ op }}</option>
                   </select>
+                  <div v-if="ivaTocado && errorIva" class="invalid-feedback d-block">{{ errorIva }}</div>
                 </div>
 
                 <!-- Nombre / Razón social -->
@@ -176,9 +199,9 @@ function guardarCliente() {
 
             <!-- Footer con acciones -->
             <div class="modal-footer bg-light px-4 py-3 border-top">
-              <button type="button" class="btn btn-secondary px-4" @click="cerrarModal">Cancelar</button>
-              <button type="submit" class="btn btn-coralon px-4 fw-semibold" :disabled="!!errorCuil">
-                {{ clienteAEditar ? 'Guardar Cambios' : 'Guardar Cliente' }}
+              <button type="button" class="btn btn-secondary px-4" :disabled="guardando" @click="cerrarModal">Cancelar</button>
+              <button type="submit" class="btn btn-coralon px-4 fw-semibold" :disabled="!!errorCuil || guardando">
+                {{ guardando ? 'Guardando...' : clienteAEditar ? 'Guardar Cambios' : 'Guardar Cliente' }}
               </button>
             </div>
           </form>

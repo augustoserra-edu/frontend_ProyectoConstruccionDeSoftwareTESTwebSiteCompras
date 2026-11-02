@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Navbar from './components/Navbar.vue'
 import SideBar, { type AccionSidebar } from './components/SideBar.vue'
 import LoginView from './views/LoginView.vue'
@@ -26,14 +26,27 @@ const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion1')
 function alIniciarSesion() {
   estaAutenticado.value = true
   moduloActivo.value = 'inicio'
+  if (window.location.pathname === '/login') {
+    window.history.replaceState(null, '', '/')
+  }
 }
 
 function cerrarSesion() {
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
+  localStorage.clear()
+  sessionStorage.clear()
   estaAutenticado.value = false
   moduloActivo.value = 'inicio'
 }
+
+window.addEventListener('auth:unauthorized', cerrarSesion)
+
+onMounted(() => {
+  window.addEventListener('auth:unauthorized', cerrarSesion)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('auth:unauthorized', cerrarSesion)
+})
 
 function cambiarModulo(nuevoModulo: string) {
   moduloActivo.value = nuevoModulo
@@ -104,7 +117,7 @@ const accionesSidebar = computed<{
         descripcion: 'Buscar cliente por CUIL y generar la orden'
       },
       accion3: {
-        titulo: 'Devoluciones',
+        titulo: 'Estado orden venta',
         descripcion: 'Historial, anulaciones y notas de crédito'
       }
     }

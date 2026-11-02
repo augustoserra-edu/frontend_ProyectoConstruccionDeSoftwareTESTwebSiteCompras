@@ -12,6 +12,9 @@ export const aviso = reactive({
 })
 
 export function mostrarAviso(tipo: TipoAviso, titulo: string, mensaje: string) {
+  if (tipo === 'error' && !localStorage.getItem('access_token')) {
+    return
+  }
   aviso.tipo = tipo
   aviso.titulo = titulo
   aviso.mensaje = mensaje
@@ -28,6 +31,7 @@ export function avisoExito(mensaje: string, titulo = 'Listo') {
 
 // Los mensajes de error de la API empiezan con "Error: ": en el pop up ya va el título, así que se saca
 export function avisoError(mensaje: string, titulo = 'No se pudo completar la acción') {
+  if (!mensaje || !localStorage.getItem('access_token')) return
   mostrarAviso('error', titulo, mensaje.replace(/^Error:\s*/i, ''))
 }
 

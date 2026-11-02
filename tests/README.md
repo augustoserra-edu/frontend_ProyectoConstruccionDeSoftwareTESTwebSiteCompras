@@ -25,6 +25,11 @@ npm run test:proveedores
 Estas ejecuciones parciales incluyen las pruebas compartidas de las vistas;
 no generan cobertura. Para acreditar el porcentaje, usar siempre `npm test`.
 
+La suite `tests/finanzas.test.mjs`, incorporada desde el repositorio original,
+usa el ejecutor de Node y se ejecuta por separado con
+`node --test tests/finanzas.test.mjs`. No forma parte de la cobertura de
+Compras/Proveedores medida por Vitest.
+
 La suite compartida de paginación también se ejecuta en ambos módulos. Verifica
 catálogos vacíos, respuestas inválidas, fallos al cargar páginas posteriores y
 compatibilidad con el formato de arreglo, con Axios simulado.
