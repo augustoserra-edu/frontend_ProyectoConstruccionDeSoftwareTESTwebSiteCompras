@@ -26,8 +26,8 @@ Estas ejecuciones parciales incluyen las pruebas compartidas de las vistas;
 no generan cobertura. Para acreditar el porcentaje, usar siempre `npm test`.
 
 La suite `tests/finanzas.test.mjs`, incorporada desde el repositorio original,
-usa el ejecutor de Node y se ejecuta por separado con
-`node --test tests/finanzas.test.mjs`. No forma parte de la cobertura de
+usa el ejecutor de Node y también se ejecuta con `npm test` y `npm run check`.
+Para ejecutarla sola: `npm run test:finanzas`. No forma parte de la cobertura de
 Compras/Proveedores medida por Vitest.
 
 La suite compartida de paginación también se ejecuta en ambos módulos. Verifica

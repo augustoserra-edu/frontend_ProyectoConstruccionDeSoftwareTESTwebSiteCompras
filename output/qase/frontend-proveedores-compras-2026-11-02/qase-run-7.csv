@@ -1,0 +1,780 @@
+case_id,title,suite,suite_id,assignee,time_spent_ms,status,finish_time,steps,steps_input_data,steps_expected_result,steps_status,steps_comments,comment,stacktrace,priority,severity,automation,type,tags,is_muted,case_parameter
+120,"AUT-C01: Los estados y totales decimales del servidor se muestran sin inventar registros","Módulo Proveedores Y Compras",2,"Augusto Serra",10370,Passed,"2026-11-02 15:52:33","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Invocar presentarOrden y presentarDetalles.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Orden 41; proveedor 12; estado 7=Pendiente; total 21.00; producto 5; cantidad 2; precio 10.50.
+2. Orden 41; proveedor 12; estado 7=Pendiente; total 21.00; producto 5; cantidad 2; precio 10.50.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. IDs y fecha conservados; estado pendiente; total 21; precio 10.5 y subtotal 21.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+121,"AUT-C02: Las órdenes nuevas se envían en una sola solicitud con sus detalles y sin campos simulados","Módulo Proveedores Y Compras",2,"Augusto Serra",41006,Passed,"2026-11-02 15:53:15","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Crear orden con adaptador Axios simulado y examinar solicitud.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Proveedor 12; producto 5; cantidad 2; precio 10.5.
+2. Proveedor 12; producto 5; cantidad 2; precio 10.5.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Un POST a /compras/ordenes-compra/ con proveedor, fecha ISO y detalles; precio_unitario 10.50; sin total o estado inventados.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+122,"AUT-C03: Las compras nuevas guardan la hora de envío y no una hora fija al mediodía","Módulo Proveedores Y Compras",2,"Augusto Serra",98,Passed,"2026-11-02 15:53:17","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Crear orden y capturar fecha enviada; restaurar reloj.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Reloj simulado 2026-10-19T20:47:31.000Z; fecha de formulario 2026-10-18.
+2. Reloj simulado 2026-10-19T20:47:31.000Z; fecha de formulario 2026-10-18.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. fecha es exactamente 2026-10-19T20:47:31.000Z.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+123,"AUT-C04: El detalle muestra la fecha y hora argentina sin segundos ni UTC","Módulo Proveedores Y Compras",2,"Augusto Serra",151,Passed,"2026-11-02 15:53:18","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Formatear 2026-10-16T15:00:00Z y 2026-10-20T01:15:00Z; probar variantes.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Fechas UTC, -03:00, solo fecha y texto invalida.
+2. Fechas UTC, -03:00, solo fecha y texto invalida.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. 2026-10-16 12:00 y 2026-10-19 22:15; sin segundos ni UTC; solo fecha no inventa hora; invalida muestra Fecha no disponible.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+124,"AUT-C05: La edición actualiza productos, conserva fecha y estado e informa los rechazos","Módulo Proveedores Y Compras",2,"Augusto Serra",97,Passed,"2026-11-02 15:53:19","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Editar orden y repetir con rechazo simulado.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Orden 41; producto 5; cantidad 3; precio 10.5; respuesta 31.50 y luego HTTP 400.
+2. Orden 41; producto 5; cantidad 3; precio 10.5; respuesta 31.50 y luego HTTP 400.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. PATCH contiene proveedor y detalles; no fecha ni estado; total de respuesta 31.50; error 400 propagado.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+125,"AUT-C06: El cambio de estado envía el identificador del catálogo e informa los errores","Módulo Proveedores Y Compras",2,"Augusto Serra",474,Passed,"2026-11-02 15:53:21","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Actualizar estado y probar transiciones básicas.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Orden 41; estado destino 19; luego HTTP 400.
+2. Orden 41; estado destino 19; luego HTTP 400.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. PATCH /compras/ordenes-compra/41/ con estado 19; rechazo propagado; pendiente a recibida inválido; aprobada a recibida válido.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+126,"AUT-C07: Las facturas se filtran por orden y se adaptan desde la API contable","Módulo Proveedores Y Compras",2,"Augusto Serra",161,Passed,"2026-11-02 15:53:22","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Consultar facturas mediante adaptador simulado.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Factura sin orden y factura COMPRA 3 de orden 41; subtotal 21.00; impuestos 4.41; total 25.41.
+2. Factura sin orden y factura COMPRA 3 de orden 41; subtotal 21.00; impuestos 4.41; total 25.41.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Solo factura asociada; IDs conservados; subtotal 21, impuesto 4.41 y total 25.41 numéricos.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+127,"AUT-C08: El flujo de compras respeta las transiciones permitidas y los estados finales","Módulo Proveedores Y Compras",2,"Augusto Serra",95,Passed,"2026-11-02 15:53:24","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Evaluar todas las 36 combinaciones y etiquetas.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Seis estados: pendiente, aprobada, rechazada, recibida, devuelto, contabilizado; desconocido y constructor.
+2. Seis estados: pendiente, aprobada, rechazada, recibida, devuelto, contabilizado; desconocido y constructor.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Solo pendiente a aprobada/rechazada y aprobada a recibida/devuelto; estados finales sin transiciones manuales; desconocidos rechazados.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+128,"AUT-C09: El catálogo ordena los seis estados conservando sus nombres e identificadores","Módulo Proveedores Y Compras",2,"Augusto Serra",103,Passed,"2026-11-02 15:53:25","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Obtener estados y presentar orden con estado 24.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Catálogo inverso con IDs 20 a 25.
+2. Catálogo inverso con IDs 20 a 25.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Orden pendiente/aprobada/rechazada/recibida/devuelto/contabilizado con IDs 25/24/23/22/21/20; orden 24 se presenta aprobada.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+129,"AUT-C10: Los proveedores conservan sus precios de compra, incluidos los faltantes y los valores cero","Módulo Proveedores Y Compras",2,"Augusto Serra",6852,Passed,"2026-11-02 15:53:33","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Obtener proveedores para Compras.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Proveedor 12 con productos 5=10.50, 6=null y 7=0.00.
+2. Proveedor 12 con productos 5=10.50, 6=null y 7=0.00.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Productos 5/6/7; precios 10.5/null/0; nulo no se transforma en cero.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+130,"AUT-C11: El rechazo reconoce variantes del catálogo sin inventar estados faltantes","Módulo Proveedores Y Compras",2,"Augusto Serra",457,Passed,"2026-11-02 15:53:35","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Buscar y normalizar estado; probar catálogo sin rechazo y con variantes duplicadas.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Variantes Rechazada, Rechazado, Rechazar y espacios; IDs 73 y 81.
+2. Variantes Rechazada, Rechazado, Rechazar y espacios; IDs 73 y 81.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Variantes reconocidas; estado ausente devuelve undefined; nombre canónico Rechazada ID 81 preferido.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+131,"AUT-C12: Los productos del formato anterior siguen disponibles con sus precios de catálogo","Módulo Proveedores Y Compras",2,"Augusto Serra",165,Passed,"2026-11-02 15:53:36","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Adaptar proveedores y resolver precio de compra con 10.5, 0 y null.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Formato legado productos [5,6], producto_id 7 y lista vacía; precios catálogo 100/200/300.
+2. Formato legado productos [5,6], producto_id 7 y lista vacía; precios catálogo 100/200/300.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Asociaciones conservadas; legado usa catálogo; precio explícito 0 conservado; null explícito produce NaN sin tomar venta.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+132,"AUT-C13: La validación del proveedor normaliza espacios y verifica campos y productos del catálogo","Módulo Proveedores Y Compras",2,"Augusto Serra",66,Passed,"2026-11-02 15:53:38","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Normalizar proveedor y validar variantes.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Nombre con espacios; CUIT 20-44215209-9; catálogo [5]; campos vacíos, excesivos, producto 99 y duplicado.
+2. Nombre con espacios; CUIT 20-44215209-9; catálogo [5]; campos vacíos, excesivos, producto 99 y duplicado.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Nombre Materiales Sur; dirección Calle 12; CUIT 20442152099; inválidos rechazados; email/teléfono/dirección vacíos permitidos.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+133,"AUT-C14: Las fechas e importes rechazan valores inválidos o fuera de rango y permiten importe cero","Módulo Proveedores Y Compras",2,"Augusto Serra",144,Passed,"2026-11-02 15:53:39","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Evaluar importeValido y fechaValida.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Importes 0, 1.23, 0.1+0.2, 9999999999.99, -1, NaN, Infinity, 1.001 y 10000000000; fechas bisiestas.
+2. Importes 0, 1.23, 0.1+0.2, 9999999999.99, -1, NaN, Infinity, 1.001 y 10000000000; fechas bisiestas.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Primeros cuatro importes válidos; restantes inválidos; 2028-02-29 válido; 2026-02-29, abril 31, mes 13, año 0000 y vacío inválidos.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+134,"AUT-C15: Los campos normalizan espacios antes de actualizar los datos y recortan al perder el foco","Módulo Proveedores Y Compras",2,"Augusto Serra",132,Passed,"2026-11-02 15:53:40","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Montar directiva; emitir input y blur; desmontar.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Campo con maxLength 150; 1000 espacios; texto Loma con espacios repetidos y Negra; 200 letras.
+2. Campo con maxLength 150; 1000 espacios; texto Loma con espacios repetidos y Negra; 200 letras.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Solo espacios se vacían; input normaliza separación; blur recorta extremo; longitud queda 150.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+135,"AUT-C16: Solo se sincronizan una vez las compras recibidas que tienen factura de compra","Módulo Proveedores Y Compras",2,"Augusto Serra",118,Passed,"2026-11-02 15:53:42","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Sincronizar dos veces en paralelo y una vez después.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Órdenes 41/42 recibidas, 43 pendiente, 44 contabilizada; facturas COMPRA duplicadas para 41 y VENTA para 42.
+2. Órdenes 41/42 recibidas, 43 pendiente, 44 contabilizada; facturas COMPRA duplicadas para 41 y VENTA para 42.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Llamadas simultáneas comparten promesa; un único PATCH a 41 con estado 9; otras órdenes sin cambios; ningún POST de factura.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+136,"AUT-C17: Una consulta fallida de facturas no cambia los estados de compra","Módulo Proveedores Y Compras",2,"Augusto Serra",120,Passed,"2026-11-02 15:53:43","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Invocar sincronizarComprasFacturadas.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. GET facturas simulado falla No disponible.
+2. GET facturas simulado falla No disponible.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Promesa rechazada; solo GET y ningún cambio de estado.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+137,"AUT-C18: El rechazo de la API conserva el estado real de la orden y permite reintentar","Módulo Proveedores Y Compras",2,"Augusto Serra",90,Passed,"2026-11-02 15:53:44","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Sincronizar; quitar rechazo; reintentar.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Orden 41 recibida con factura COMPRA; PATCH rechaza y luego responde estado 9.
+2. Orden 41 recibida con factura COMPRA; PATCH rechaza y luego responde estado 9.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Primer resultado conserva estado 7 y error de orden 41; segundo devuelve estado 9 y errores vacíos.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+138,"AUT-C19: Los filtros de contacto excluyen caracteres no permitidos y validan el email","Módulo Proveedores Y Compras",2,"Augusto Serra",18214,Passed,"2026-11-02 15:54:04","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Filtrar contacto y validar clases de equivalencia.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. CUIT con letras/emoji; teléfono ++54+11; email con espacios; emails y teléfonos válidos e inválidos definidos en test.
+2. CUIT con letras/emoji; teléfono ++54+11; email con espacios; emails y teléfonos válidos e inválidos definidos en test.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. CUIT 20-44215209-9; teléfono +5411; email limpio; alias/subdominio/apóstrofe aceptados; múltiples @, puntos consecutivos y teléfonos mal formados rechazados.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+139,"AUT-C20: Los límites de contacto exigen 11 dígitos de CUIT y hasta 14 caracteres de teléfono","Módulo Proveedores Y Compras",2,"Augusto Serra",164,Passed,"2026-11-02 15:54:05","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Validar cada longitud sobre proveedor válido.
+3. Ejecutar npx vitest run tests/compras.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. CUIT con 10/11/12 dígitos; teléfono con + y 13/14/15 caracteres totales.
+2. CUIT con 10/11/12 dígitos; teléfono con + y 13/14/15 caracteres totales.
+3. npx vitest run tests/compras.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Solo CUIT de 11 dígitos; teléfono de 13 y 14 aceptado; 15 rechazado. No verifica dígito fiscal de CUIT.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+140,"AUT-P01: Los catálogos consultan todas las páginas sin seguir direcciones externas","Módulo Proveedores Y Compras",2,"Augusto Serra",157,Passed,"2026-11-02 15:54:06","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Cargar ambos catálogos con Axios simulado y registrar rutas/páginas.
+3. Ejecutar npx vitest run tests/proveedores.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Catálogos proveedores/productos de dos páginas; next apunta a host internal.
+2. Catálogos proveedores/productos de dos páginas; next apunta a host internal.
+3. npx vitest run tests/proveedores.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Devuelve registros completos; solicita páginas 1 y 2 en ruta configurada; no sigue host de next.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+141,"AUT-P02: Los registros del formato anterior conservan sus asociaciones y bloquean escrituras incompatibles","Módulo Proveedores Y Compras",2,"Augusto Serra",140,Passed,"2026-11-02 15:54:08","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Leer legado; intentar crear asociación múltiple; leer formato actual.
+3. Ejecutar npx vitest run tests/proveedores.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Proveedor legado con producto_id 17; luego formato productos [17,18].
+2. Proveedor legado con producto_id 17; luego formato productos [17,18].
+3. npx vitest run tests/proveedores.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Conserva [17]; relacionMultipleDisponible false y escritura rechazada; nuevo formato restablece true.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+142,"AUT-P03: El primer proveedor envía precios de compra aunque el listado esté vacío","Módulo Proveedores Y Compras",2,"Augusto Serra",166,Passed,"2026-11-02 15:54:09","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Cargar listado; crear primer proveedor; actualizar productos; simular duplicado API.
+3. Ejecutar npx vitest run tests/proveedores.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Listado vacío; productos 2/7 con precios 12.5/0; edición a 7/8 con 0/20; error CUIT HTTP 400.
+2. Listado vacío; productos 2/7 con precios 12.5/0; edición a 7/8 con 0/20; error CUIT HTTP 400.
+3. npx vitest run tests/proveedores.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. POST y PATCH serializan 12.50/0.00/20.00; asociaciones correctas; rechazo 400 propagado.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+143,"AUT-P04: El catálogo conserva identificadores y códigos, normaliza valores y no inventa productos","Módulo Proveedores Y Compras",2,"Augusto Serra",81,Passed,"2026-11-02 15:54:11","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Consultar catálogo en los tres escenarios.
+3. Ejecutar npx vitest run tests/proveedores.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Producto 80 REAL-80 con precio 12.50 y rubro Materiales; luego catálogo vacío y error.
+2. Producto 80 REAL-80 con precio 12.50 y rubro Materiales; luego catálogo vacío y error.
+3. npx vitest run tests/proveedores.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. ID 80 y código conservados; precio 12.5; vacío sigue vacío; error se propaga sin inventar productos.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+144,"AUT-P05: La edición normaliza identificadores de productos y conserva precios en el formato de la API","Módulo Proveedores Y Compras",2,"Augusto Serra",74,Passed,"2026-11-02 15:54:12","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Leer proveedor; editar; intentar precio null; consultar por ID.
+3. Ejecutar npx vitest run tests/proveedores.test.mjs y localizar el nombre exacto indicado en la descripción.
+","1. Productos con ID cadena 2 y número 7; precios 12.50 y 0.00; precio null; IDs duplicados.
+2. Productos con ID cadena 2 y número 7; precios 12.50 y 0.00; precio null; IDs duplicados.
+3. npx vitest run tests/proveedores.test.mjs
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. IDs numéricos y precios conservados; PATCH decimal de dos posiciones; null rechazado sin HTTP; IDs duplicados se deduplican.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+145,"CP-P01: alta válida emite datos normalizados y precios, sin llamar a la API","Módulo Proveedores Y Compras",2,"Augusto Serra",78,Passed,"2026-11-02 15:54:13","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Montar ModalProveedor; completar campos; seleccionar producto; enviar.
+3. Ejecutar npx vitest run tests/proveedores.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Materiales   Sur; SA; CUIT 20-44215209-9; ventas@empresa.com; producto 5; precio 12.50.
+2. Materiales   Sur; SA; CUIT 20-44215209-9; ventas@empresa.com; producto 5; precio 12.50.
+3. npx vitest run tests/proveedores.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Un evento guardar con nombre Materiales Sur, CUIT 20442152099, producto 5 y precio 12.5.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+146,"CP-P02: filtra CUIT y teléfono al escribir o pegar, incluido límite 14","Módulo Proveedores Y Compras",2,"Augusto Serra",85,Passed,"2026-11-02 15:54:15","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Introducir cadenas en campos del modal.
+3. Ejecutar npx vitest run tests/proveedores.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. CUIT xx20-44215209-9; teléfono ++54 (11) 123456789012; email a <>@empresa.com.
+2. CUIT xx20-44215209-9; teléfono ++54 (11) 123456789012; email a <>@empresa.com.
+3. npx vitest run tests/proveedores.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. CUIT 20-44215209-9; teléfono +5411123456789 y maxlength 14; email a@empresa.com.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+147,"CP-P03: email sin @ bloquea el envío y muestra error","Módulo Proveedores Y Compras",2,"Augusto Serra",390,Passed,"2026-11-02 15:54:16","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Editar email y enviar formulario.
+3. Ejecutar npx vitest run tests/proveedores.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Proveedor válido; email sin-arroba.com.
+2. Proveedor válido; email sin-arroba.com.
+3. npx vitest run tests/proveedores.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Sin evento guardar; alerta menciona @.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+148,"CP-P04: precio vacío o negativo bloquea; cero es válido","Módulo Proveedores Y Compras",2,"Augusto Serra",2658,Passed,"2026-11-02 15:54:21","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Enviar cada variante de precio.
+3. Ejecutar npx vitest run tests/proveedores.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Proveedor con producto 5; precio vacío, -1 y 0.
+2. Proveedor con producto 5; precio vacío, -1 y 0.
+3. npx vitest run tests/proveedores.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Vacío y negativo bloqueados con mensaje; cero emite guardar.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+149,"CP-P05: catálogo, búsqueda, cierre y estado guardando","Módulo Proveedores Y Compras",2,"Augusto Serra",5000,Passed,"2026-11-02 15:54:27","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Quitar producto faltante; buscar; intentar guardar; desbloquear/cerrar; reabrir con catálogo vacío.
+3. Ejecutar npx vitest run tests/proveedores.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Producto asociado 99 ausente del catálogo; búsqueda inexistente; guardando=true y error CUIT duplicado.
+2. Producto asociado 99 ausente del catálogo; búsqueda inexistente; guardando=true y error CUIT duplicado.
+3. npx vitest run tests/proveedores.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Advertencia desaparece; no coincidencias informado; sin guardar y fieldset deshabilitado; error visible; cierre emitido; catálogo vacío informado.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+150,"CP-C01: nueva orden usa precio de compra, calcula total y emite una sola orden","Módulo Proveedores Y Compras",2,"Augusto Serra",399,Passed,"2026-11-02 15:54:29","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Montar modal; seleccionar proveedor/producto; guardar; repetir guardando=true.
+3. Ejecutar npx vitest run tests/compras.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Proveedor 1; producto 5 compra 10/venta 100; cantidad 3.
+2. Proveedor 1; producto 5 compra 10/venta 100; cantidad 3.
+3. npx vitest run tests/compras.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Sin proveedor submit deshabilitado; total 30 con precio 10; exactamente un evento guardar.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+151,"CP-C02: cantidades inválidas, búsqueda y renglones duplicados","Módulo Proveedores Y Compras",2,"Augusto Serra",82,Passed,"2026-11-02 15:54:30","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Probar cantidades; enviar cero; agregar fila; filtrar proveedor/producto; quitar fila y cerrar.
+3. Ejecutar npx vitest run tests/compras.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Cantidad inicial 1; entradas 1.5, -1, 2147483648, abc y 0; producto 5.
+2. Cantidad inicial 1; entradas 1.5, -1, 2147483648, abc y 0; producto 5.
+3. npx vitest run tests/compras.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Inválidos conservan 1; cero bloquea con mensaje; producto 5 no aparece en segunda fila; búsquedas vacías informadas; cierre emitido.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+152,"CP-C03: edición conserva precio histórico y rechaza productos repetidos","Módulo Proveedores Y Compras",2,"Augusto Serra",78,Passed,"2026-11-02 15:54:31","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Guardar edición; reabrir con dos detalles del mismo producto; enviar.
+3. Ejecutar npx vitest run tests/compras.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Orden 1 fecha 2026-10-01; producto 5 cantidad 2 precio histórico 8; catálogo precio 10.
+2. Orden 1 fecha 2026-10-01; producto 5 cantidad 2 precio histórico 8; catálogo precio 10.
+3. npx vitest run tests/compras.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Fecha conservada; total 16; duplicado informa una sola vez y no emite segundo guardar.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+153,"CP-C04: detalle muestra acciones según estado, factura y filtros","Módulo Proveedores Y Compras",2,"Augusto Serra",72,Passed,"2026-11-02 15:54:32","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Aprobar/editar pendiente; consultar recibida; reintentar facturas; buscar sin coincidencias y cerrar.
+3. Ejecutar npx vitest run tests/compras.componentes.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Orden 1 pendiente y 2 recibida; detalles por 20; sin facturas; luego error de conexión.
+2. Orden 1 pendiente y 2 recibida; detalles por 20; sin facturas; luego error de conexión.
+3. npx vitest run tests/compras.componentes.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Eventos con IDs correctos; recibida informa facturación en Finanzas; no botón Contabilizar; reintento y cierre emitidos.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+154,"CP-P06: vista lista, ordena, filtra y permite crear/editar proveedor","Módulo Proveedores Y Compras",2,"Augusto Serra",72,Passed,"2026-11-02 15:54:34","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Montar vista con servicios simulados; ordenar/filtrar; crear; editar; cerrar modal.
+3. Ejecutar npx vitest run tests/compras-proveedores.vistas.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Dos proveedores; catálogo Cemento; alta con CUIT 20999999991 y edición Nuevo nombre.
+2. Dos proveedores; catálogo Cemento; alta con CUIT 20999999991 y edición Nuevo nombre.
+3. npx vitest run tests/compras-proveedores.vistas.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Dos filas iniciales; búsqueda Cemento conserva dos y búsqueda inexistente informa vacío; éxito de alta/edición y nombre actualizado. La prueba acciona ordenamiento pero no compara toda la secuencia ordenada.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+155,"CP-P07: CUIT duplicado bloquea la API; errores se muestran y permiten reintentar","Módulo Proveedores Y Compras",2,"Augusto Serra",170,Passed,"2026-11-02 15:54:35","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Reintentar carga; intentar alta duplicada; intentar alta nueva rechazada.
+3. Ejecutar npx vitest run tests/compras-proveedores.vistas.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Carga falla Sin conexión; CUIT existente; luego CUIT nuevo y error al guardar.
+2. Carga falla Sin conexión; CUIT existente; luego CUIT nuevo y error al guardar.
+3. npx vitest run tests/compras-proveedores.vistas.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Duplicado no llama crearProveedor; error visible; rechazo mantiene formulario abierto.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+156,"CP-C05: listado de compras ordena, filtra, pagina y abre detalle","Módulo Proveedores Y Compras",2,"Augusto Serra",117,Passed,"2026-11-02 15:54:37","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Cargar más; accionar ordenamientos; filtrar estado/búsqueda; abrir detalle; emitir focus.
+3. Ejecutar npx vitest run tests/compras-proveedores.vistas.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. 21 órdenes alternando dos proveedores; primera fecha inválida; restantes 2026-10-01.
+2. 21 órdenes alternando dos proveedores; primera fecha inválida; restantes 2026-10-01.
+3. npx vitest run tests/compras-proveedores.vistas.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. 20 de 21 inicial y 21 de 21 al ampliar; filtros vacíos informados; detalle visible; dos cargas tras foco. No comprueba visual responsive ni secuencia completa de ordenamiento.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+157,"CP-C06: crear/editar orden y confirmar o cancelar cambio de estado","Módulo Proveedores Y Compras",2,"Augusto Serra",543,Passed,"2026-11-02 15:54:39","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Crear/editar por eventos de modal simulado; cancelar cambio de estado; volver a pedir y confirmar.
+3. Ejecutar npx vitest run tests/compras-proveedores.vistas.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Orden 1 pendiente; nueva orden 2; edición total 30; estado Aprobada ID 2.
+2. Orden 1 pendiente; nueva orden 2; edición total 30; estado Aprobada ID 2.
+3. npx vitest run tests/compras-proveedores.vistas.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Mensajes de éxito; cancelar no llama servicio; confirmar actualizarEstadoCompra(1,2); estado mostrado Aprobada.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+158,"CP-C07: fallos de carga, sincronización y guardado son visibles","Módulo Proveedores Y Compras",2,"Augusto Serra",165,Passed,"2026-11-02 15:54:40","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Montar vista; reintentar escenarios; intentar nueva orden.
+3. Ejecutar npx vitest run tests/compras-proveedores.vistas.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Carga Sin conexión; sincronización con error de orden; facturas no disponibles; alta rechazada.
+2. Carga Sin conexión; sincronización con error de orden; facturas no disponibles; alta rechazada.
+3. npx vitest run tests/compras-proveedores.vistas.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Errores visibles; informa imposibilidad de contabilizar; alta fallida mantiene modal abierto con Orden rechazada.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,High,Normal,Automated,Regression,,false,
+159,"AUT-PAG01: devuelve un catálogo vacío sin pedir otra página (arreglo)","Módulo Proveedores Y Compras",2,"Augusto Serra",5092,Passed,"2026-11-02 15:54:46","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Invocar obtenerTodasLasPaginas para proveedores.
+3. Ejecutar npx vitest run tests/compras-proveedores.paginacion.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Respuesta [] en primera página.
+2. Respuesta [] en primera página.
+3. npx vitest run tests/compras-proveedores.paginacion.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Devuelve []; exactamente un GET de página 1.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+160,"AUT-PAG02: devuelve un catálogo vacío sin pedir otra página (página)","Módulo Proveedores Y Compras",2,"Augusto Serra",116,Passed,"2026-11-02 15:54:48","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Invocar obtenerTodasLasPaginas para proveedores.
+3. Ejecutar npx vitest run tests/compras-proveedores.paginacion.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Respuesta {results: [], next: null}.
+2. Respuesta {results: [], next: null}.
+3. npx vitest run tests/compras-proveedores.paginacion.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Devuelve []; exactamente un GET de página 1.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+161,"AUT-PAG03: rechaza un listado mal formado en vez de mostrarlo como vacío","Módulo Proveedores Y Compras",2,"Augusto Serra",438,Passed,"2026-11-02 15:54:49","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Invocar carga y capturar rechazo.
+3. Ejecutar npx vitest run tests/compras-proveedores.paginacion.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Respuesta {results: {}, next: null}.
+2. Respuesta {results: {}, next: null}.
+3. npx vitest run tests/compras-proveedores.paginacion.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Error Respuesta de listado inválida.; un GET; no devuelve falso catálogo vacío.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+162,"AUT-PAG04: propaga el error de la segunda página sin devolver un catálogo incompleto","Módulo Proveedores Y Compras",2,"Augusto Serra",135,Passed,"2026-11-02 15:54:51","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Cargar /scm/productos/ mediante servicio compartido usado por el módulo.
+3. Ejecutar npx vitest run tests/compras-proveedores.paginacion.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Página 1 con id 1 y next externo; página 2 rechaza API no disponible.
+2. Página 1 con id 1 y next externo; página 2 rechaza API no disponible.
+3. npx vitest run tests/compras-proveedores.paginacion.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Propaga el mismo error; dos GET en ruta local con page 1/2; no retorna catálogo parcial ni sigue host externo.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+163,"AUT-PAG05: conserva los registros si la última página usa el formato de arreglo","Módulo Proveedores Y Compras",2,"Augusto Serra",72,Passed,"2026-11-02 15:54:52","1. Preparar el escenario aislado definido en el archivo de prueba.
+2. Cargar catálogo con cambio de formato en última página.
+3. Ejecutar npx vitest run tests/compras-proveedores.paginacion.test.ts y localizar el nombre exacto indicado en la descripción.
+","1. Página 1 results [{id:1}] con next; página 2 arreglo [{id:2}].
+2. Página 1 results [{id:1}] con next; página 2 arreglo [{id:2}].
+3. npx vitest run tests/compras-proveedores.paginacion.test.ts
+","1. Fixtures y respuestas simuladas disponibles; sin conexión a backend real.
+2. Devuelve [{id:1},{id:2}]; dos GET.
+3. La prueba específica aparece aprobada sin fallos de aserción. Para cobertura global del módulo ejecutar npm test; mínimo 80% de líneas.
+","1. Untested
+2. Untested
+3. Untested
+","1. 
+2. 
+3. ",,,Medium,Normal,Automated,Regression,,false,
+164,"E2E-P01: Crear y consultar proveedor","Módulo Proveedores Y Compras",2,"Augusto Serra",0,Untested,,"1. Abrir Proveedores y Nuevo Proveedor.
+2. Completar datos y asociar el producto con precio 10; guardar una vez.
+3. Buscar por CUIT y reabrir; recargar página.
+","1. Nombre QA Proveedor; denominación Pruebas; qa+proveedor@example.com; +541112345678; precio 10.
+2. Nombre QA Proveedor; denominación Pruebas; qa+proveedor@example.com; +541112345678; precio 10.
+3. Nombre QA Proveedor; denominación Pruebas; qa+proveedor@example.com; +541112345678; precio 10.
+","1. Formulario disponible.
+2. Alta única y mensaje de éxito; CUIT normalizado.
+3. Datos, asociación y precio persisten.
+",,,,,High,Normal,Manual,Regression,,false,
+165,"E2E-P02: Filtros y límites de CUIT y teléfono","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Escribir/pegar CUIT con letras y guiones.
+2. Probar CUIT incompleto y luego uno de 11 dígitos de prueba libre.
+3. Pegar teléfono de prueba y probar 14/15 caracteres.
+","1. CUIT xx20-44215209-9; CUIT 10/11/12 dígitos; teléfono ++54 (11) 123456789012; + inicial o intermedio.
+2. CUIT xx20-44215209-9; CUIT 10/11/12 dígitos; teléfono ++54 (11) 123456789012; + inicial o intermedio.
+3. CUIT xx20-44215209-9; CUIT 10/11/12 dígitos; teléfono ++54 (11) 123456789012; + inicial o intermedio.
+","1. Se eliminan letras; guiones admitidos; para guardar se exigen 11 dígitos.
+2. Incompleto bloquea; válido supera validación de longitud. No se afirma validación fiscal del dígito verificador.
+3. Solo números y un + inicial; campo limita a 14 caracteres; no conserva + intermedios.
+",,,,,High,Normal,Manual,Regression,,false,
+166,"E2E-P03: Email inválido y corrección","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Ingresar cada email inválido e intentar guardar.
+2. Corregir a qa+ventas@example.com y guardar.
+","1. sin-arroba.com; a@@empresa.com; qa+ventas@example.com.
+2. sin-arroba.com; a@@empresa.com; qa+ventas@example.com.
+","1. Error de email; ningún POST/PATCH de guardado.
+2. Operación exitosa; email persiste al reabrir.
+",,,,,High,Normal,Manual,Regression,,false,
+167,"E2E-P04: Editar asociaciones y precios de compra","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Abrir edición; cambiar nombre y asociaciones; probar precio vacío y negativo.
+2. Corregir a 12.50 y 0; guardar y recargar.
+","1. Precios 12.50 y 0; variantes vacío y -1.
+2. Precios 12.50 y 0; variantes vacío y -1.
+","1. Errores bloquean guardado y no hay request de escritura.
+2. Productos y precios persistentes; cero válido; dos decimales en payload.
+",,,,,High,Normal,Manual,Regression,,false,
+168,"E2E-P05: CUIT duplicado y recuperación ante fallo de carga","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Intentar alta con CUIT ya presente en listado.
+2. Cerrar modal; simular Offline y recargar Proveedores.
+3. Restaurar Online y usar Reintentar.
+","1. CUIT existente; modo Offline temporal.
+2. CUIT existente; modo Offline temporal.
+3. CUIT existente; modo Offline temporal.
+","1. Mensaje de duplicado y no se envía POST.
+2. Error visible sin inventar datos.
+3. Listado real se recupera; interfaz usable.
+",,,,,High,Normal,Manual,Regression,,false,
+169,"E2E-C01: Crear orden y confirmar aprobación y recepción","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Abrir Nueva orden; seleccionar proveedor/producto; cantidad 2; guardar.
+2. Abrir detalle; Aprobar y confirmar.
+3. Recibir y confirmar; recargar sin factura asociada.
+","1. Cantidad 2; total 20. Solo interactuar con Compras.
+2. Cantidad 2; total 20. Solo interactuar con Compras.
+3. Cantidad 2; total 20. Solo interactuar con Compras.
+","1. Orden única Pendiente con total 20 y precio de compra 10.
+2. Estado Aprobado persistente tras recarga.
+3. Estado Recibido; no botón Contabilizar ni cambio contable sin factura.
+",,,,,High,Normal,Manual,Regression,,false,
+170,"E2E-C02: Cancelar confirmación de aprobación","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Abrir detalle y seleccionar Aprobar.
+2. Cancelar y recargar.
+","1. ID de orden anotado; Network abierto.
+2. ID de orden anotado; Network abierto.
+","1. Se solicita confirmación.
+2. Sin PATCH de aprobación; orden sigue Pendiente.
+",,,,,High,Normal,Manual,Regression,,false,
+171,"E2E-C03: Cantidades inválidas y prevención de productos repetidos","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Seleccionar producto e introducir cantidades inválidas.
+2. Corregir a 2; agregar renglón.
+3. Seleccionar otro producto y verificar total antes de guardar.
+","1. 1.5; -1; abc; 2147483648; 0; cantidad válida 2.
+2. 1.5; -1; abc; 2147483648; 0; cantidad válida 2.
+3. 1.5; -1; abc; 2147483648; 0; cantidad válida 2.
+","1. No se aceptan fracciones, negativos, texto ni valor superior al máximo; cero bloquea guardado.
+2. Producto ya elegido no disponible en segundo renglón.
+3. Total suma cantidades por precios de compra; sin productos duplicados.
+",,,,,High,Normal,Manual,Regression,,false,
+172,"E2E-C04: Editar pendiente conservando fecha y precio histórico","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Abrir edición y revisar precio y fecha.
+2. Cambiar cantidad a 3; guardar y recargar.
+","1. Fecha original anotada; nueva cantidad 3.
+2. Fecha original anotada; nueva cantidad 3.
+","1. Se mantiene precio histórico 8 y fecha original.
+2. Total 24; fecha y estado conservados; no se reemplaza precio por catálogo.
+",,,,,High,Normal,Manual,Regression,,false,
+173,"E2E-C05: Hora real de creación y formato argentino","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Crear orden y comparar fecha de request con instante del envío.
+2. Abrir detalle y comparar contra fecha devuelta por API convertida a Argentina.
+","1. Hora del envío y valor ISO de respuesta.
+2. Hora del envío y valor ISO de respuesta.
+","1. Fecha ISO corresponde al envío; no hora fija al mediodía.
+2. Formato AAAA-MM-DD HH:mm en Buenos Aires; sin segundos ni UTC; día correcto al cruzar medianoche.
+",,,,,High,Normal,Manual,Regression,,false,
+174,"INT-01: Listado real de proveedores y catálogo","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Abrir Proveedores e inspeccionar respuestas de proveedores y catálogo.
+2. Comparar lista y edición con respuestas HTTP.
+","1. IDs, nombres y precios conocidos; más de una página si disponible.
+2. IDs, nombres y precios conocidos; más de una página si disponible.
+","1. GET exitosos; todas las páginas necesarias consultadas.
+2. IDs, nombres, asociaciones y precios coinciden; sin registros inventados.
+",,,,,High,Normal,Manual,Regression,,false,
+175,"INT-02: Sincronización con factura COMPRA preexistente","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Entrar o actualizar Compras.
+2. Recargar y consultar detalle.
+3. Actualizar nuevamente y observar requests.
+","1. ID orden y factura anotados; Network abierto.
+2. ID orden y factura anotados; Network abierto.
+3. ID orden y factura anotados; Network abierto.
+","1. Consulta facturas; PATCH de orden usa ID real de Contabilizado.
+2. Estado Contabilizado persiste; comprobante de esa orden visible.
+3. No repite PATCH para orden ya contabilizada; no crea factura. Si API rechaza, registrar fallo con estado real y mensaje.
+",,,,,High,Normal,Manual,Regression,,false,
+176,"INT-03: Orden recibida sin factura conserva estado","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Entrar a Compras y actualizar.
+2. Revisar Network y volver a cargar.
+","1. ID de orden y catálogo de estados.
+2. ID de orden y catálogo de estados.
+","1. Orden sigue Recibido.
+2. No PATCH a Contabilizado para esta orden; sin contabilización manual disponible.
+",,,,,High,Normal,Manual,Regression,,false,
+177,"INT-04: Recuperación de conexión en Compras","Módulo Proveedores Y Compras",2,,0,Untested,,"1. Activar Offline y actualizar Compras.
+2. Restaurar Online y pulsar Reintentar.
+3. Abrir una orden tras recuperación.
+","1. Offline temporal y Online.
+2. Offline temporal y Online.
+3. Offline temporal y Online.
+","1. Error visible; sin falso éxito ni cambio de estado ficticio.
+2. Órdenes/catálogos se recuperan; si facturas fallan se muestra error específico.
+3. Detalle coincide con API; navegación utilizable.
+",,,,,High,Normal,Manual,Regression,,false,

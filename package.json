@@ -6,7 +6,8 @@
   "scripts": {
     "lint": "node scripts/lint-con-log.mjs",
     "check": "npm run lint && npm test && npm run build",
-    "test": "node scripts/test-con-log.mjs",
+    "test": "node scripts/test-con-log.mjs && npm run test:finanzas",
+    "test:finanzas": "node --test tests/finanzas.test.mjs",
     "test:compras": "node scripts/test-con-log.mjs compras",
     "test:proveedores": "node scripts/test-con-log.mjs proveedores",
     "dev": "vite",

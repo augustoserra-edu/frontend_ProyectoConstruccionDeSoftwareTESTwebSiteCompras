@@ -8,6 +8,62 @@ const productos = [{ id: 5, nombre: 'Cemento', precio: 100 }, { id: 6, nombre: '
 const props = { mostrar: true, guardando: false, error: '', proveedores: [proveedor], productos }
 const boton = (w: ReturnType<typeof mount>, texto: string) => w.findAll('button').find(b => b.text().includes(texto))!
 
+const propsConsulta = {
+  mostrar: false, ordenInicialId: 1,
+  ordenes: [{ ordencompra_id: 1, proveedor_id: 1, fecha: '2026-10-01', total: 20, estado: 'pendiente' }],
+  proveedores: [proveedor], productos, estados: [], facturas: [],
+  detalles: [{ ordencompradetalle_id: 1, ordencompra_id: 1, producto_id: 5, cantidad: 2, preciounitario: 10, subtotal: 20 }],
+  cargandoFacturas: false, errorFacturas: '', actualizando: false, error: '', mensaje: ''
+}
+
+test('CP-C08: comprobantes se muestran y buscan solo en su orden asociada', async () => {
+  const factura = { facturacabecera_id: 1, ordencompra_id: 1, numero: 'QA-0001', tipo: 'COMPRA', fecha: '2026-10-02', subtotal: 20, impuesto: 4.2, total: 24.2 }
+  const w = mount(ModalVerOrdenesCompra, { props: {
+    ...propsConsulta,
+    facturas: [factura, { ...factura, facturacabecera_id: 2, ordencompra_id: 99, numero: 'AJENA-0099' }]
+  } })
+  await w.setProps({ mostrar: true })
+  const detalle = w.get('[aria-label="Orden seleccionada"]')
+  expect(detalle.text()).toContain('COMPRA · QA-0001')
+  expect(detalle.text()).toContain('Impuesto')
+  expect(detalle.text()).toContain('24,20')
+  expect(w.text()).not.toContain('AJENA-0099')
+  await w.get('input[type="search"]').setValue('QA-0001')
+  expect(w.findAll('.list-group button')).toHaveLength(1)
+  await w.get('input[type="search"]').setValue('AJENA-0099')
+  expect(w.findAll('.list-group button')).toHaveLength(0)
+})
+
+test('CP-C09: actualizar bloquea cierre por Escape y acciones hasta terminar', async () => {
+  const w = mount(ModalVerOrdenesCompra, { props: propsConsulta })
+  await w.setProps({ mostrar: true, actualizando: true })
+  expect(boton(w, 'Aprobar').attributes('disabled')).toBeDefined()
+  expect(boton(w, 'Editar orden').attributes('disabled')).toBeDefined()
+  await boton(w, 'Aprobar').trigger('click')
+  await boton(w, 'Editar orden').trigger('click')
+  await w.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
+  expect(w.emitted('cerrar')).toBeUndefined()
+  expect(w.emitted('editar')).toBeUndefined()
+  expect(w.emitted('cambiar-estado')).toBeUndefined()
+  await w.setProps({ actualizando: false })
+  await boton(w, 'Aprobar').trigger('click')
+  expect(w.emitted('cambiar-estado')?.[0]).toEqual([1, 'aprobada'])
+  await w.get('[role="dialog"]').trigger('keydown', { key: 'Escape' })
+  expect(w.emitted('cerrar')).toHaveLength(1)
+})
+
+test('CP-C10: orden sin renglones no se aprueba y estado desconocido no ofrece transiciones', async () => {
+  const w = mount(ModalVerOrdenesCompra, { props: { ...propsConsulta, detalles: [] } })
+  await w.setProps({ mostrar: true })
+  expect(w.text()).toContain('Sin productos registrados')
+  expect(boton(w, 'Aprobar').attributes('disabled')).toBeDefined()
+  await boton(w, 'Aprobar').trigger('click')
+  expect(w.emitted('cambiar-estado')).toBeUndefined()
+  await w.setProps({ ordenes: [{ ...propsConsulta.ordenes[0]!, estado: 'desconocido' }] })
+  expect(w.text()).toContain('No hay acciones disponibles')
+  expect(w.findAll('button').some(b => ['Aprobar', 'Rechazar', 'Recibir', 'Devolver', 'Editar orden'].includes(b.text()))).toBe(false)
+})
+
 test('CP-C01: nueva orden usa precio de compra, calcula total y emite una sola orden', async () => {
   const w = mount(ModalNuevaOrdenCompra, { props })
   await w.get('form').trigger('submit')

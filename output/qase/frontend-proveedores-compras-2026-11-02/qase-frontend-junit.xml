@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="49" failures="0" errors="0" time="1.3997092">
+    <testsuite name="tests/compras-proveedores.paginacion.test.ts" timestamp="2026-11-02T15:44:38.196Z" hostname="Augusto" tests="5" failures="0" errors="0" skipped="0" time="0.016211">
+        <testcase classname="tests/compras-proveedores.paginacion.test.ts" name="Paginación compartida de Compras y Proveedores &gt; devuelve un catálogo vacío sin pedir otra página (arreglo)" time="0.0073281">
+        </testcase>
+        <testcase classname="tests/compras-proveedores.paginacion.test.ts" name="Paginación compartida de Compras y Proveedores &gt; devuelve un catálogo vacío sin pedir otra página (página)" time="0.0010059">
+        </testcase>
+        <testcase classname="tests/compras-proveedores.paginacion.test.ts" name="Paginación compartida de Compras y Proveedores &gt; rechaza un listado mal formado en vez de mostrarlo como vacío" time="0.0025912">
+        </testcase>
+        <testcase classname="tests/compras-proveedores.paginacion.test.ts" name="Paginación compartida de Compras y Proveedores &gt; propaga el error de la segunda página sin devolver un catálogo incompleto" time="0.0016004">
+        </testcase>
+        <testcase classname="tests/compras-proveedores.paginacion.test.ts" name="Paginación compartida de Compras y Proveedores &gt; conserva los registros si la última página usa el formato de arreglo" time="0.0007726">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/compras-proveedores.vistas.test.ts" timestamp="2026-11-02T15:44:38.199Z" hostname="Augusto" tests="5" failures="0" errors="0" skipped="0" time="0.5675315">
+        <testcase classname="tests/compras-proveedores.vistas.test.ts" name="CP-P06: vista lista, ordena, filtra y permite crear/editar proveedor" time="0.178656">
+        </testcase>
+        <testcase classname="tests/compras-proveedores.vistas.test.ts" name="CP-P07: CUIT duplicado bloquea la API; errores se muestran y permiten reintentar" time="0.0380078">
+        </testcase>
+        <testcase classname="tests/compras-proveedores.vistas.test.ts" name="CP-C05: listado de compras ordena, filtra, pagina y abre detalle" time="0.2572674">
+        </testcase>
+        <testcase classname="tests/compras-proveedores.vistas.test.ts" name="CP-C06: crear/editar orden y confirmar o cancelar cambio de estado" time="0.0625934">
+        </testcase>
+        <testcase classname="tests/compras-proveedores.vistas.test.ts" name="CP-C07: fallos de carga, sincronización y guardado son visibles" time="0.0286342">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/compras.componentes.test.ts" timestamp="2026-11-02T15:44:38.200Z" hostname="Augusto" tests="7" failures="0" errors="0" skipped="0" time="0.3077145">
+        <testcase classname="tests/compras.componentes.test.ts" name="CP-C08: comprobantes se muestran y buscan solo en su orden asociada" time="0.1173856">
+        </testcase>
+        <testcase classname="tests/compras.componentes.test.ts" name="CP-C09: actualizar bloquea cierre por Escape y acciones hasta terminar" time="0.0279498">
+        </testcase>
+        <testcase classname="tests/compras.componentes.test.ts" name="CP-C10: orden sin renglones no se aprueba y estado desconocido no ofrece transiciones" time="0.0170583">
+        </testcase>
+        <testcase classname="tests/compras.componentes.test.ts" name="CP-C01: nueva orden usa precio de compra, calcula total y emite una sola orden" time="0.0410794">
+        </testcase>
+        <testcase classname="tests/compras.componentes.test.ts" name="CP-C02: cantidades inválidas, búsqueda y renglones duplicados" time="0.0499522">
+        </testcase>
+        <testcase classname="tests/compras.componentes.test.ts" name="CP-C03: edición conserva precio histórico y rechaza productos repetidos" time="0.027582">
+        </testcase>
+        <testcase classname="tests/compras.componentes.test.ts" name="CP-C04: detalle muestra acciones según estado, factura y filtros" time="0.0227295">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/compras.test.mjs" timestamp="2026-11-02T15:44:38.202Z" hostname="Augusto" tests="22" failures="0" errors="0" skipped="0" time="0.1103654">
+        <testcase classname="tests/compras.test.mjs" name="Los estados y totales decimales del servidor se muestran sin inventar registros" time="0.0061342">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Las órdenes nuevas se envían en una sola solicitud con sus detalles y sin campos simulados" time="0.0063013">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Las compras nuevas guardan la hora de envío y no una hora fija al mediodía" time="0.005378">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="El detalle muestra la fecha y hora argentina sin segundos ni UTC" time="0.0315318">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="La edición actualiza productos, conserva fecha y estado e informa los rechazos" time="0.0162671">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="El cambio de estado envía el identificador del catálogo e informa los errores" time="0.0067401">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Las facturas se filtran por orden y se adaptan desde la API contable" time="0.0014507">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="El flujo de compras respeta las transiciones permitidas y los estados finales" time="0.0006774">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="El catálogo ordena los seis estados conservando sus nombres e identificadores" time="0.0017106">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Los proveedores conservan sus precios de compra, incluidos los faltantes y los valores cero" time="0.0015061">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="El rechazo reconoce variantes del catálogo sin inventar estados faltantes" time="0.0006757">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Los productos del formato anterior siguen disponibles con sus precios de catálogo" time="0.0013658">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="La validación del proveedor normaliza espacios y verifica campos y productos del catálogo" time="0.0044858">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Las fechas e importes rechazan valores inválidos o fuera de rango y permiten importe cero" time="0.0007901">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Los campos normalizan espacios antes de actualizar los datos y recortan al perder el foco" time="0.0056518">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Solo se sincronizan una vez las compras recibidas que tienen factura de compra" time="0.0032124">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Una consulta fallida de facturas no cambia los estados de compra" time="0.0028454">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="El rechazo de la API conserva el estado real de la orden y permite reintentar" time="0.0040321">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Los filtros de contacto excluyen caracteres no permitidos y validan el email" time="0.0013127">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="Los límites de contacto exigen 11 dígitos de CUIT y hasta 14 caracteres de teléfono" time="0.0006855">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="supplier validation returns every invalid field in a single submit" time="0.0005755">
+        </testcase>
+        <testcase classname="tests/compras.test.mjs" name="API field errors retain nested row paths and separate general failures" time="0.0039458">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/proveedores.componentes.test.ts" timestamp="2026-11-02T15:44:38.206Z" hostname="Augusto" tests="5" failures="0" errors="0" skipped="0" time="0.3614051">
+        <testcase classname="tests/proveedores.componentes.test.ts" name="Proveedor: formulario aislado &gt; CP-P01: alta válida emite datos normalizados y precios, sin llamar a la API" time="0.1675112">
+        </testcase>
+        <testcase classname="tests/proveedores.componentes.test.ts" name="Proveedor: formulario aislado &gt; CP-P02: filtra CUIT y teléfono al escribir o pegar, incluido límite 14" time="0.0344676">
+        </testcase>
+        <testcase classname="tests/proveedores.componentes.test.ts" name="Proveedor: formulario aislado &gt; CP-P03: email sin @ bloquea el envío y muestra error" time="0.0375837">
+        </testcase>
+        <testcase classname="tests/proveedores.componentes.test.ts" name="Proveedor: formulario aislado &gt; CP-P04: precio vacío o negativo bloquea; cero es válido" time="0.0508049">
+        </testcase>
+        <testcase classname="tests/proveedores.componentes.test.ts" name="Proveedor: formulario aislado &gt; CP-P05: catálogo, búsqueda, cierre y estado guardando" time="0.0671789">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/proveedores.test.mjs" timestamp="2026-11-02T15:44:38.208Z" hostname="Augusto" tests="5" failures="0" errors="0" skipped="0" time="0.0364817">
+        <testcase classname="tests/proveedores.test.mjs" name="Los catálogos consultan todas las páginas sin seguir direcciones externas" time="0.0128531">
+        </testcase>
+        <testcase classname="tests/proveedores.test.mjs" name="Los registros del formato anterior conservan sus asociaciones y bloquean escrituras incompatibles" time="0.0034403">
+        </testcase>
+        <testcase classname="tests/proveedores.test.mjs" name="El primer proveedor envía precios de compra aunque el listado esté vacío" time="0.0116587">
+        </testcase>
+        <testcase classname="tests/proveedores.test.mjs" name="El catálogo conserva identificadores y códigos, normaliza valores y no inventa productos" time="0.0031022">
+        </testcase>
+        <testcase classname="tests/proveedores.test.mjs" name="La edición normaliza identificadores de productos y conserva precios en el formato de la API" time="0.0024825">
+        </testcase>
+    </testsuite>
+</testsuites>
