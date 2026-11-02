@@ -1,0 +1,49 @@
+Órdenes de Compra
+
+Registro y consulta de compras a proveedores
+
+Nueva orden
+Buscar orden
+Estado
+Todos los estados
+Pendiente
+Aprobado
+Rechazado
+Recibido
+Devuelto
+Contabilizado
+Ordenar por
+N° de orden
+Proveedor
+Fecha
+Sentido
+Ascendente
+Descendente
+Orden #34
+Devuelto
+QA Web 20261102 Pruebas Editado
+CUIT: 30-99999999-5
+Fecha: 2/11/2026
+Productos y cantidades
+Arena × 1
+Ver detalle →
+Total: $ 10,00
+Orden #33
+Rechazado
+QA Web 20261102 Pruebas Editado
+CUIT: 30-99999999-5
+Fecha: 2/11/2026
+Productos y cantidades
+Arena × 1
+Ver detalle →
+Total: $ 10,00
+Orden #32
+Recibido
+QA Web 20261102 Pruebas Editado
+CUIT: 30-99999999-5
+Fecha: 2/11/2026
+Productos y cantidades
+Arena × 3
+Ver detalle →
+Total: $ 30,00
+Mostrando 3 de 3 órdenes
